@@ -7,26 +7,18 @@ Phase 1: Parallel Foundational Extraction (Trigger, Feeling, Thought)
 Phase 2: Sequential Context-Aware Enrichment (Violated Value)
 """
 
-import json
 import logging
-from typing import List, Optional
+from typing import List
+from uuid import UUID
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
-from core.utils import load_prompts
-from core.models import (
-    Story, StoryAnalysis, TriggerExtraction, FeelingsExtraction,
-    ThoughtExtraction, ValueAnalysisExtraction, ThemeExtraction, StoryProcessingResult
-)
+from core.models import Story, StoryAnalysis
 
 logger = logging.getLogger(__name__)
 
 
 class StoryDeconstructor:
     """Handles the analysis and deconstruction of personal stories using a two-phase pipeline."""
-
-    def __init__(self):
-        """Initialize the story deconstructor with prompts and schemas."""
-        self.theme_extraction_schema = self.prompts["schemas"]["theme_extraction_schema"]
 
     def _extract_triggers(self, story_text: str) -> List[str]:
         """
@@ -244,7 +236,7 @@ class StoryDeconstructor:
 
             # Create StoryAnalysis instance with individual fields
             story_analysis = StoryAnalysis(
-                story_id=story_id,
+                story_id=UUID(story_id),
                 triggers=triggers,
                 emotions=emotions,
                 thoughts=thoughts,

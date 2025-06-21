@@ -23,21 +23,21 @@ CREATE TABLE IF NOT EXISTS story_analysis (
 );
 
 -- Personality profiles table - stores generated personality profiles
--- The profile JSONB field contains structured personality data with three main categories:
--- 1. core_values_motivations: Analysis of guiding principles and motivations
--- 2. communication_style_voice: How the individual communicates and expresses themselves
--- 3. cognitive_style_worldview: How they think, process information, and view the world
 CREATE TABLE IF NOT EXISTS personality_profiles (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id VARCHAR(100) DEFAULT 'default',
-    profile JSONB NOT NULL,
-    source_analyses_count INTEGER DEFAULT 0,
-    profile_version VARCHAR(50) DEFAULT '2.0',
-    raw_response TEXT,
+    -- user_id VARCHAR(100) DEFAULT 'default',
+    values TEXT[],
+    formality_vocabulary TEXT,
+    tone TEXT,
+    sentence_structure TEXT,
+    recurring_phrases_metaphors TEXT,
+    emotional_expression TEXT,
+    storytelling_style TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id)
 );
+
 
 -- Add indexes for better query performance on personality profiles
 CREATE INDEX IF NOT EXISTS idx_personality_profiles_user_id ON personality_profiles(user_id);

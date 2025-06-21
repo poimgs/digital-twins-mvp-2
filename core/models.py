@@ -104,7 +104,6 @@ class StoryAnalysis:
             emotions=data.get('emotions', []),
             thoughts=data.get('thoughts', []),
             values=data.get('values', []),
-            raw_response=data.get('raw_response'),
             created_at=created_at
         )
     
@@ -117,7 +116,6 @@ class StoryAnalysis:
             'emotions': self.emotions,
             'thoughts': self.thoughts,
             'values': self.values,
-            'raw_response': self.raw_response,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
@@ -129,11 +127,14 @@ class PersonalityProfile:
     """Data class representing a personality profile record from the personality_profiles table."""
     
     id: UUID = field(default_factory=uuid.uuid4)
-    user_id: str = "default"
-    profile: Dict[str, Any] = field(default_factory=dict)
-    source_analyses_count: int = 0
-    raw_response: Optional[str] = None
-    profile_version: str = "1.0"
+    # user_id: str = "default"
+    values: List[str] = field(default_factory=list)
+    formality_vocabulary: str = ""
+    tone: str = ""
+    sentence_structure: str = ""
+    recurring_phrases_metaphors: str = ""
+    emotional_expression: str = ""
+    storytelling_style: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
@@ -147,6 +148,16 @@ class PersonalityProfile:
         elif profile_id is None:
             profile_id = uuid.uuid4()
         
+        # Handle profile data conversion
+        values = data.get('values', [])
+        formality_vocabulary = data.get('formality_vocabulary', '')
+        tone = data.get('tone', '')
+        sentence_structure = data.get('sentence_structure', '')
+        recurring_phrases_metaphors = data.get('recurring_phrases_metaphors', '')
+        emotional_expression = data.get('emotional_expression', '')
+        storytelling_style = data.get('storytelling_style', '')
+        
+        
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
@@ -158,11 +169,13 @@ class PersonalityProfile:
         
         return cls(
             id=profile_id,
-            user_id=data.get('user_id', 'default'),
-            profile=data.get('profile', {}),
-            source_analyses_count=data.get('source_analyses_count', 0),
-            raw_response=data.get('raw_response'),
-            profile_version=data.get('profile_version', '1.0'),
+            values=values,
+            formality_vocabulary=formality_vocabulary,
+            tone=tone,
+            sentence_structure=sentence_structure,
+            recurring_phrases_metaphors=recurring_phrases_metaphors,
+            emotional_expression=emotional_expression,
+            storytelling_style=storytelling_style,
             created_at=created_at,
             updated_at=updated_at
         )
@@ -171,11 +184,13 @@ class PersonalityProfile:
         """Convert PersonalityProfile instance to dictionary for database operations."""
         return {
             'id': str(self.id),
-            'user_id': self.user_id,
-            'profile': self.profile,
-            'source_analyses_count': self.source_analyses_count,
-            'raw_response': self.raw_response,
-            'profile_version': self.profile_version,
+            'values': self.values,
+            'formality_vocabulary': self.formality_vocabulary,
+            'tone': self.tone,
+            'sentence_structure': self.sentence_structure,
+            'recurring_phrases_metaphors': self.recurring_phrases_metaphors,
+            'emotional_expression': self.emotional_expression,
+            'storytelling_style': self.storytelling_style,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -267,375 +282,4 @@ class UserInputAnalysis:
             'topics': self.topics,
             'concepts': self.concepts,
             'intent': self.intent
-        }
-
-
-@dataclass
-class TriggerPatterns:
-    """Data class for trigger pattern analysis."""
-
-    most_common_categories: List[str] = field(default_factory=list)
-    recurring_themes: List[str] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'TriggerPatterns':
-        """Create a TriggerPatterns instance from a dictionary."""
-        return cls(
-            most_common_categories=data.get('most_common_categories', []),
-            recurring_themes=data.get('recurring_themes', [])
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert TriggerPatterns instance to dictionary."""
-        return {
-            'most_common_categories': self.most_common_categories,
-            'recurring_themes': self.recurring_themes
-        }
-
-
-@dataclass
-class EmotionalPatterns:
-    """Data class for emotional pattern analysis."""
-
-    dominant_emotions: List[str] = field(default_factory=list)
-    emotional_clusters: List[str] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'EmotionalPatterns':
-        """Create an EmotionalPatterns instance from a dictionary."""
-        return cls(
-            dominant_emotions=data.get('dominant_emotions', []),
-            emotional_clusters=data.get('emotional_clusters', [])
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert EmotionalPatterns instance to dictionary."""
-        return {
-            'dominant_emotions': self.dominant_emotions,
-            'emotional_clusters': self.emotional_clusters
-        }
-
-
-@dataclass
-class CognitivePatterns:
-    """Data class for cognitive pattern analysis."""
-
-    thinking_styles: List[str] = field(default_factory=list)
-    recurring_concerns: List[str] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'CognitivePatterns':
-        """Create a CognitivePatterns instance from a dictionary."""
-        return cls(
-            thinking_styles=data.get('thinking_styles', []),
-            recurring_concerns=data.get('recurring_concerns', [])
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert CognitivePatterns instance to dictionary."""
-        return {
-            'thinking_styles': self.thinking_styles,
-            'recurring_concerns': self.recurring_concerns
-        }
-
-
-@dataclass
-class ValuePatterns:
-    """Data class for value pattern analysis."""
-
-    core_values: List[str] = field(default_factory=list)
-    trigger_value_relationships: List[str] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ValuePatterns':
-        """Create a ValuePatterns instance from a dictionary."""
-        return cls(
-            core_values=data.get('core_values', []),
-            trigger_value_relationships=data.get('trigger_value_relationships', [])
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert ValuePatterns instance to dictionary."""
-        return {
-            'core_values': self.core_values,
-            'trigger_value_relationships': self.trigger_value_relationships
-        }
-
-
-@dataclass
-class PsychologicalInsights:
-    """Data class for psychological insights analysis."""
-
-    personality_traits: List[str] = field(default_factory=list)
-    coping_mechanisms: List[str] = field(default_factory=list)
-    growth_areas: List[str] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PsychologicalInsights':
-        """Create a PsychologicalInsights instance from a dictionary."""
-        return cls(
-            personality_traits=data.get('personality_traits', []),
-            coping_mechanisms=data.get('coping_mechanisms', []),
-            growth_areas=data.get('growth_areas', [])
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert PsychologicalInsights instance to dictionary."""
-        return {
-            'personality_traits': self.personality_traits,
-            'coping_mechanisms': self.coping_mechanisms,
-            'growth_areas': self.growth_areas
-        }
-
-
-@dataclass
-class ThemeExtraction:
-    """Data class for theme extraction results."""
-
-    trigger_patterns: TriggerPatterns = field(default_factory=TriggerPatterns)
-    emotional_patterns: EmotionalPatterns = field(default_factory=EmotionalPatterns)
-    cognitive_patterns: CognitivePatterns = field(default_factory=CognitivePatterns)
-    value_patterns: ValuePatterns = field(default_factory=ValuePatterns)
-    psychological_insights: PsychologicalInsights = field(default_factory=PsychologicalInsights)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ThemeExtraction':
-        """Create a ThemeExtraction instance from a dictionary."""
-        return cls(
-            trigger_patterns=TriggerPatterns.from_dict(data.get('trigger_patterns', {})),
-            emotional_patterns=EmotionalPatterns.from_dict(data.get('emotional_patterns', {})),
-            cognitive_patterns=CognitivePatterns.from_dict(data.get('cognitive_patterns', {})),
-            value_patterns=ValuePatterns.from_dict(data.get('value_patterns', {})),
-            psychological_insights=PsychologicalInsights.from_dict(data.get('psychological_insights', {}))
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert ThemeExtraction instance to dictionary."""
-        return {
-            'trigger_patterns': self.trigger_patterns.to_dict(),
-            'emotional_patterns': self.emotional_patterns.to_dict(),
-            'cognitive_patterns': self.cognitive_patterns.to_dict(),
-            'value_patterns': self.value_patterns.to_dict(),
-            'psychological_insights': self.psychological_insights.to_dict()
-        }
-
-
-@dataclass
-class CoreValuesMotivations:
-    """Data class for core values and motivations analysis."""
-
-    core_values: str = ""
-    anti_values: str = ""
-    motivational_drivers: str = ""
-    value_conflicts: str = ""
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'CoreValuesMotivations':
-        """Create a CoreValuesMotivations instance from a dictionary."""
-        return cls(
-            core_values=data.get('core_values', ''),
-            anti_values=data.get('anti_values', ''),
-            motivational_drivers=data.get('motivational_drivers', ''),
-            value_conflicts=data.get('value_conflicts', '')
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert CoreValuesMotivations instance to dictionary."""
-        return {
-            'core_values': self.core_values,
-            'anti_values': self.anti_values,
-            'motivational_drivers': self.motivational_drivers,
-            'value_conflicts': self.value_conflicts
-        }
-
-
-@dataclass
-class CommunicationStyleVoice:
-    """Data class for communication style and voice analysis."""
-
-    formality_vocabulary: str = ""
-    tone: str = ""
-    sentence_structure: str = ""
-    recurring_phrases_metaphors: str = ""
-    emotional_expression: str = ""
-    storytelling_style: str = ""
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'CommunicationStyleVoice':
-        """Create a CommunicationStyleVoice instance from a dictionary."""
-        return cls(
-            formality_vocabulary=data.get('formality_vocabulary', ''),
-            tone=data.get('tone', ''),
-            sentence_structure=data.get('sentence_structure', ''),
-            recurring_phrases_metaphors=data.get('recurring_phrases_metaphors', ''),
-            emotional_expression=data.get('emotional_expression', ''),
-            storytelling_style=data.get('storytelling_style', '')
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert CommunicationStyleVoice instance to dictionary."""
-        return {
-            'formality_vocabulary': self.formality_vocabulary,
-            'tone': self.tone,
-            'sentence_structure': self.sentence_structure,
-            'recurring_phrases_metaphors': self.recurring_phrases_metaphors,
-            'emotional_expression': self.emotional_expression,
-            'storytelling_style': self.storytelling_style
-        }
-
-
-@dataclass
-class CognitiveStyleWorldview:
-    """Data class for cognitive style and worldview analysis."""
-
-    thinking_process: str = ""
-    outlook: str = ""
-    focus: str = ""
-    learning_style: str = ""
-    decision_making: str = ""
-    stress_response: str = ""
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'CognitiveStyleWorldview':
-        """Create a CognitiveStyleWorldview instance from a dictionary."""
-        return cls(
-            thinking_process=data.get('thinking_process', ''),
-            outlook=data.get('outlook', ''),
-            focus=data.get('focus', ''),
-            learning_style=data.get('learning_style', ''),
-            decision_making=data.get('decision_making', ''),
-            stress_response=data.get('stress_response', '')
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert CognitiveStyleWorldview instance to dictionary."""
-        return {
-            'thinking_process': self.thinking_process,
-            'outlook': self.outlook,
-            'focus': self.focus,
-            'learning_style': self.learning_style,
-            'decision_making': self.decision_making,
-            'stress_response': self.stress_response
-        }
-
-
-@dataclass
-class PersonalityAnalysis:
-    """Data class for personality analysis results."""
-
-    core_values_motivations: CoreValuesMotivations = field(default_factory=CoreValuesMotivations)
-    communication_style_voice: CommunicationStyleVoice = field(default_factory=CommunicationStyleVoice)
-    cognitive_style_worldview: CognitiveStyleWorldview = field(default_factory=CognitiveStyleWorldview)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PersonalityAnalysis':
-        """Create a PersonalityAnalysis instance from a dictionary."""
-        return cls(
-            core_values_motivations=CoreValuesMotivations.from_dict(data.get('core_values_motivations', {})),
-            communication_style_voice=CommunicationStyleVoice.from_dict(data.get('communication_style_voice', {})),
-            cognitive_style_worldview=CognitiveStyleWorldview.from_dict(data.get('cognitive_style_worldview', {}))
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert PersonalityAnalysis instance to dictionary."""
-        return {
-            'core_values_motivations': self.core_values_motivations.to_dict(),
-            'communication_style_voice': self.communication_style_voice.to_dict(),
-            'cognitive_style_worldview': self.cognitive_style_worldview.to_dict()
-        }
-
-
-@dataclass
-class StoryProcessingResult:
-    """Data class for story processing pipeline results."""
-
-    status: str
-    total_stories: int
-    processed_stories: int
-    key_themes: ThemeExtraction
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'StoryProcessingResult':
-        """Create a StoryProcessingResult instance from a dictionary."""
-        return cls(
-            status=data.get('status', 'unknown'),
-            total_stories=data.get('total_stories', 0),
-            processed_stories=data.get('processed_stories', 0),
-            key_themes=ThemeExtraction.from_dict(data.get('key_themes', {}))
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert StoryProcessingResult instance to dictionary."""
-        return {
-            'status': self.status,
-            'total_stories': self.total_stories,
-            'processed_stories': self.processed_stories,
-            'key_themes': self.key_themes.to_dict()
-        }
-
-
-@dataclass
-class PersonalityTraits:
-    """Data class for extracted personality traits."""
-
-    core_traits: List[str] = field(default_factory=list)
-    communication_style: Dict[str, Any] = field(default_factory=dict)
-    emotional_patterns: Dict[str, Any] = field(default_factory=dict)
-    values: List[str] = field(default_factory=list)
-    behavioral_tendencies: List[str] = field(default_factory=list)
-    relationship_approach: Dict[str, Any] = field(default_factory=dict)
-    decision_making: Dict[str, Any] = field(default_factory=dict)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PersonalityTraits':
-        """Create a PersonalityTraits instance from a dictionary."""
-        return cls(
-            core_traits=data.get('core_traits', []),
-            communication_style=data.get('communication_style', {}),
-            emotional_patterns=data.get('emotional_patterns', {}),
-            values=data.get('values', []),
-            behavioral_tendencies=data.get('behavioral_tendencies', []),
-            relationship_approach=data.get('relationship_approach', {}),
-            decision_making=data.get('decision_making', {})
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert PersonalityTraits instance to dictionary."""
-        return {
-            'core_traits': self.core_traits,
-            'communication_style': self.communication_style,
-            'emotional_patterns': self.emotional_patterns,
-            'values': self.values,
-            'behavioral_tendencies': self.behavioral_tendencies,
-            'relationship_approach': self.relationship_approach,
-            'decision_making': self.decision_making
-        }
-
-
-@dataclass
-class PersonalityPipelineResult:
-    """Data class for complete personality pipeline results."""
-
-    status: str
-    profile: PersonalityProfile
-    summary: str
-    source_analyses: int
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PersonalityPipelineResult':
-        """Create a PersonalityPipelineResult instance from a dictionary."""
-        return cls(
-            status=data.get('status', 'unknown'),
-            profile=PersonalityProfile.from_dict(data.get('profile', {})),
-            summary=data.get('summary', ''),
-            source_analyses=data.get('source_analyses', 0)
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert PersonalityPipelineResult instance to dictionary."""
-        return {
-            'status': self.status,
-            'profile': self.profile.to_dict(),
-            'summary': self.summary,
-            'source_analyses': self.source_analyses
         }

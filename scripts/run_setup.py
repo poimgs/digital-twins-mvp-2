@@ -20,7 +20,7 @@ from config.settings import settings
 from core.supabase_client import supabase_client
 from core.story_deconstructor import story_deconstructor
 from core.personality import personality_profiler
-from core.models import Story, StoryAnalysis, PersonalityProfile
+from core.models import Story, StoryAnalysis
 
 # Configure logging
 logging.basicConfig(
@@ -68,50 +68,6 @@ def run_story_analysis(stories: List[Story]) -> List[StoryAnalysis]:
         logger.error(f"Error in story analysis pipeline: {e}")
         raise
 
-
-def generate_personality_profile(analyses: List[StoryAnalysis]) -> PersonalityProfile:
-    """
-    Generate personality profile from story analyses.
-
-    Args:
-        analyses: List of StoryAnalysis instances
-
-    Returns:
-        PersonalityProfile instance
-    """
-    logger.info("Generating personality profile...")
-
-    try:
-        # Check if profile already exists
-        existing_profile = supabase_client.get_personality_profile()
-
-        if existing_profile and len(analyses) <= existing_profile.source_analyses_count:
-            logger.info("Personality profile already up to date")
-            return existing_profile
-
-        # Generate new or updated profile
-        profile_result = personality_profiler.create_profile_from_stories()
-
-        if profile_result["status"] == "success":
-            logger.info("Successfully generated personality profile")
-            # The profile_result["profile"] should be a PersonalityProfile instance
-            # but create_profile_from_stories returns a dict, so we need to handle this
-            profile_data = profile_result["profile"]
-            if isinstance(profile_data, PersonalityProfile):
-                return profile_data
-            else:
-                # Convert dict to PersonalityProfile if needed
-                return PersonalityProfile.from_dict(profile_data)
-        else:
-            logger.warning(f"Profile generation status: {profile_result['status']}")
-            # Return a default empty profile
-            return PersonalityProfile()
-
-    except Exception as e:
-        logger.error(f"Error generating personality profile: {e}")
-        raise
-
-
 def main():
     """Main setup function."""
     logger.info("Starting Narrative Digital Twin setup...")
@@ -128,20 +84,20 @@ def main():
         analyses = run_story_analysis(stories)
         
         # Step 3: Generate personality profile
+        # Create dictionary 
         logger.info("Step 4: Generating personality profile...")
-        profile = generate_personality_profile(analyses)
+        profile = personality_profiler.generate_personality(stories)
         
         # Summary
         logger.info("Setup completed successfully!")
         logger.info(f"- Stories processed: {len(stories)}")
         logger.info(f"- Analyses created: {len(analyses)}")
-        logger.info(f"- Personality profile: {'Created' if profile and profile.profile else 'Failed'}")
+        logger.info(f"- Personality profile: {'Created' if profile else 'Failed'}")
 
         print("\n" + "="*50)
         print("SETUP COMPLETE!")
         print("="*50)
         print(f"✓ Processed {len(stories)} stories")
-        print(f"✓ Generated {len(analyses)} analyses")
         print(f"✓ Created personality profile")
         print("\nYou can now run the chat application:")
         print("python terminal_app/chat.py")

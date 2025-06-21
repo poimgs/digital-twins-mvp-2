@@ -9,14 +9,11 @@ Supports two approaches:
 
 import json
 import logging
-from typing import Dict, List, Any, Optional
+from typing import List, Optional
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
 from core.utils import load_prompts
-from core.models import (
-    Story, PersonalityProfile, PersonalityAnalysis,
-    PersonalityTraits, PersonalityPipelineResult
-)
+from core.models import Story, PersonalityProfile
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +29,7 @@ class PersonalityProfiler:
 
 
 
-    def generate_personality_from_raw_text(
+    def generate_personality(
         self,
         stories: List[Story],
         user_id: str = "default"
@@ -63,36 +60,80 @@ class PersonalityProfiler:
             combined_corpus = "\n\n---STORY SEPARATOR---\n\n".join(story_texts)
 
             # Get prompts for raw text personality analysis
-            system_prompt = self.prompts["raw_text_personality"]["system_prompt"]
-            user_prompt = self.prompts["raw_text_personality"]["analysis_prompt"].format(
-                story_corpus=combined_corpus,
-                story_count=len(story_texts)
-            )
+            system_prompt = """You are an expert in narrative psychology and personality analysis. You have been given a collection of stories. Your task is to perform a deep analysis of these texts to create a comprehensive personality profile.
+            
+            **Instructions:**
+            Read all the provided stories and synthesize your findings to answer the following questions. Base your answers SOLELY on the content and style of the writing.
+            
+            1. **Core Values & Motivations:**
+            - What recurring themes suggest their core values? What principles seem to drive their actions in these stories?
+            - What situations or behaviors consistently trigger an action from them?
+            - What are the underlying psychological drivers that motivate their behavior?
+            
+            2. **Communication Style & Voice:**
+            - **Formality & Vocabulary:** Is the language formal or informal? Simple or complex? Technical or anecdotal?
+            - **Tone:** What is the dominant emotional tone across the stories? Is it humorous, serious, reflective, optimistic, or something else?
+            - **Sentence Structure:** Does the person use short, direct sentences or long, descriptive ones?
+            - **Recurring Phrases/Metaphors:** Are there any unique phrases, sayings, or metaphors they use repeatedly?
+            - **Emotional Expression:** How do they typically express emotions through language - directly, indirectly, through humor, etc.?
+            - **Storytelling Style:** What is their approach to narrative - linear, circular, detail-oriented, big-picture focused?"""
+            
+            user_prompt = f"""Analyze the following collection of {len(story_texts)} personal stories and create a comprehensive personality profile:\n\n{combined_corpus}"""
+            
+            schema = {
+                "type": "object",
+                "properties": {
+                    "values": {
+                        "type": "array",
+                        "description": "List of core values identified in the stories",
+                        "items": {"type": "string"}
+                    },
+                    "formality_vocabulary": {
+                        "type": "string",
+                        "description": "Analysis of language formality and vocabulary usage"
+                    },
+                    "tone": {
+                        "type": "string",
+                        "description": "Dominant emotional tone across stories"
+                    },
+                    "sentence_structure": {
+                        "type": "string",
+                        "description": "Analysis of typical sentence construction patterns"
+                    },
+                    "recurring_phrases_metaphors": {
+                        "type": "string",
+                        "description": "Common phrases and metaphors used repeatedly"
+                    },
+                    "emotional_expression": {
+                        "type": "string",
+                        "description": "Style of emotional expression in language"
+                    },
+                    "storytelling_style": {
+                        "type": "string",
+                        "description": "Overall approach to narrative construction"
+                    }
+                },
+                "required": [
+                    "values",
+                    "formality_vocabulary",
+                    "tone",
+                    "sentence_structure",
+                    "recurring_phrases_metaphors",
+                    "emotional_expression",
+                    "storytelling_style"
+                ],
+                "additionalProperties": "false"
+            }
 
             # Generate personality profile using structured response
-            profile_response = llm_service.generate_structured_response(
+            response = llm_service.generate_structured_response(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                schema=self.personality_schema
+                schema=schema
             )
 
             # Convert to PersonalityAnalysis dataclass
-            personality_analysis = PersonalityAnalysis.from_dict(profile_response)
-            raw_response = json.dumps(profile_response)
-
-            # Create PersonalityProfile instance
-            personality_profile = PersonalityProfile(
-                user_id=user_id,
-                profile={
-                    **personality_analysis.to_dict(),
-                    "analysis_type": "raw_text_analysis",
-                    "source_stories_count": len(story_texts),
-                    "generation_method": "comprehensive_text_analysis"
-                },
-                source_analyses_count=len(story_texts),
-                raw_response=raw_response,
-                profile_version="2.0"
-            )
+            personality_profile = PersonalityProfile.from_dict(response)
 
             logger.info(f"Successfully generated personality profile from raw text for user {user_id}")
             return personality_profile
@@ -100,332 +141,8 @@ class PersonalityProfiler:
         except Exception as e:
             logger.error(f"Error generating personality from raw text: {e}")
             raise
-
-    def generate_personality_from_structured_data(
-        self,
-        extraction_results: List[Dict[str, Any]],
-        user_id: str = "default"
-    ) -> PersonalityProfile:
-        """
-        Generate personality profile from structured extraction results.
-
-        Uses the results from the two-phase story extraction pipeline.
-
-        Args:
-            extraction_results: List of structured extraction results
-            user_id: User identifier for the profile
-
-        Returns:
-            PersonalityProfile instance containing the personality profile
-        """
-        try:
-            # Prepare structured data for analysis
-            structured_data = {
-                "total_stories": len(extraction_results),
-                "extraction_results": extraction_results
-            }
-
-            # Get prompts for structured data personality analysis
-            system_prompt = self.prompts["structured_personality"]["system_prompt"]
-            user_prompt = self.prompts["structured_personality"]["analysis_prompt"].format(
-                structured_data=json.dumps(structured_data, indent=2)
-            )
-
-            # Generate personality profile using structured response
-            profile_response = llm_service.generate_structured_response(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                schema=self.personality_schema
-            )
-
-            # Convert to PersonalityAnalysis dataclass
-            personality_analysis = PersonalityAnalysis.from_dict(profile_response)
-            raw_response = json.dumps(profile_response)
-
-            # Create PersonalityProfile instance
-            personality_profile = PersonalityProfile(
-                user_id=user_id,
-                profile={
-                    **personality_analysis.to_dict(),
-                    "analysis_type": "structured_extraction_analysis",
-                    "source_extractions_count": len(extraction_results),
-                    "generation_method": "structured_data_synthesis"
-                },
-                source_analyses_count=len(extraction_results),
-                raw_response=raw_response,
-                profile_version="2.0"
-            )
-
-            logger.info(f"Successfully generated personality profile from structured data for user {user_id}")
-            return personality_profile
-
-        except Exception as e:
-            logger.error(f"Error generating personality from structured data: {e}")
-            raise
-
-    def generate_persona_document(
-        self,
-        personality_profile: PersonalityProfile,
-        user_name: str = "Individual"
-    ) -> str:
-        """
-        Generate a Persona.md document from personality profile data.
-
-        This creates the human-readable persona file used to instruct the digital twin.
-
-        Args:
-            personality_profile: PersonalityProfile instance
-            user_name: Name to use in the persona document
-
-        Returns:
-            Formatted persona document as markdown string
-        """
-        try:
-            profile = personality_profile.profile
-            analysis_type = profile.get("analysis_type", "unknown")
-
-            # Get profile components with enhanced structure
-            core_values = profile.get("core_values_motivations", {})
-            communication = profile.get("communication_style_voice", {})
-            cognitive = profile.get("cognitive_style_worldview", {})
-
-            # Create a comprehensive personality summary for the persona document
-            personality_summary = {
-                "core_values_motivations": {
-                    "core_values": core_values.get("core_values", ""),
-                    "anti_values": core_values.get("anti_values", ""),
-                    "motivational_drivers": core_values.get("motivational_drivers", ""),
-                    "value_conflicts": core_values.get("value_conflicts", "")
-                },
-                "communication_style_voice": {
-                    "formality_vocabulary": communication.get("formality_vocabulary", ""),
-                    "tone": communication.get("tone", ""),
-                    "sentence_structure": communication.get("sentence_structure", ""),
-                    "recurring_phrases_metaphors": communication.get("recurring_phrases_metaphors", ""),
-                    "emotional_expression": communication.get("emotional_expression", ""),
-                    "storytelling_style": communication.get("storytelling_style", "")
-                },
-                "cognitive_style_worldview": {
-                    "thinking_process": cognitive.get("thinking_process", ""),
-                    "outlook": cognitive.get("outlook", ""),
-                    "focus": cognitive.get("focus", ""),
-                    "learning_style": cognitive.get("learning_style", ""),
-                    "decision_making": cognitive.get("decision_making", ""),
-                    "stress_response": cognitive.get("stress_response", "")
-                }
-            }
-
-            # Generate the persona document
-            system_prompt = self.prompts["persona_generation"]["system_prompt"]
-            user_prompt = self.prompts["persona_generation"]["document_prompt"].format(
-                user_name=user_name,
-                analysis_type=analysis_type,
-                core_values=json.dumps(personality_summary["core_values_motivations"], indent=2),
-                communication_style=json.dumps(personality_summary["communication_style_voice"], indent=2),
-                cognitive_style=json.dumps(personality_summary["cognitive_style_worldview"], indent=2)
-            )
-
-            persona_document = llm_service.generate_completion(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt
-            )
-
-            logger.info(f"Generated persona document for {user_name}")
-            return persona_document
-
-        except Exception as e:
-            logger.error(f"Error generating persona document: {e}")
-            raise
-
-    def create_complete_personality_pipeline(
-        self,
-        stories: List[Dict[str, Any]],
-        user_id: str = "default",
-        user_name: str = "Individual",
-        use_structured_extraction: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Complete pipeline to create personality profile and persona document.
-
-        Args:
-            stories: List of story dictionaries
-            user_id: User identifier
-            user_name: Name for the persona document
-            use_structured_extraction: Whether to use structured extraction first
-
-        Returns:
-            Complete personality data including profile and persona document
-        """
-        try:
-            if use_structured_extraction:
-                # First, try to get structured extraction results
-                from core.story_deconstructor import story_deconstructor
-
-                logger.info("Running structured extraction on stories...")
-                extraction_results = []
-
-                for story in stories:
-                    story_id = story.get("id", f"story_{len(extraction_results)}")
-                    story_content = story.get("content", story.get("text", ""))
-
-                    if story_content:
-                        try:
-                            result = story_deconstructor.analyze_story(story_content, story_id)
-                            extraction_results.append(result.get("extraction_results", {}))
-                        except Exception as e:
-                            logger.warning(f"Failed to extract from story {story_id}: {e}")
-                            continue
-
-                if extraction_results:
-                    logger.info(f"Using structured extraction results from {len(extraction_results)} stories")
-                    profile_data = self.generate_personality_from_structured_data(
-                        extraction_results, user_id
-                    )
-                else:
-                    logger.info("No structured extraction results, falling back to raw text analysis")
-                    profile_data = self.generate_personality_from_raw_text(stories, user_id)
-            else:
-                # Use raw text analysis directly
-                logger.info("Using raw text analysis for personality generation")
-                profile_data = self.generate_personality_from_raw_text(stories, user_id)
-
-            # Generate persona document
-            persona_document = self.generate_persona_document(profile_data, user_name)
-
-            # Create complete result
-            complete_result = {
-                "user_id": user_id,
-                "user_name": user_name,
-                "profile_data": profile_data,
-                "persona_document": persona_document,
-                "source_stories_count": len(stories),
-                "analysis_method": profile_data.get("analysis_type", "unknown")
-            }
-
-            # Store in database
-            supabase_client.insert_personality_profile(profile_data)
-
-            logger.info(f"Created complete personality pipeline for user {user_id}")
-            return complete_result
-
-        except Exception as e:
-            logger.error(f"Error in complete personality pipeline: {e}")
-            raise
     
-    def generate_personality_profile(
-        self,
-        analyses: List[Dict[str, Any]],
-        user_id: str = "default"
-    ) -> Dict[str, Any]:
-        """
-        Generate a comprehensive personality profile based on story analyses.
-
-        This method maintains backward compatibility while supporting new extraction formats.
-
-        Args:
-            analyses: List of story analysis results (old or new format)
-            user_id: User identifier for the profile
-
-        Returns:
-            Dictionary containing the personality profile
-        """
-        try:
-            # Check if we have new structured extraction results
-            has_structured_data = any(
-                "extraction_results" in analysis for analysis in analyses
-            )
-
-            if has_structured_data:
-                # Use structured data approach
-                extraction_results = []
-                for analysis in analyses:
-                    if "extraction_results" in analysis:
-                        extraction_results.append(analysis["extraction_results"])
-
-                return self.generate_personality_from_structured_data(
-                    extraction_results, user_id
-                )
-            else:
-                # Use legacy approach for backward compatibility
-                analyses_text = json.dumps([
-                    analysis.get("analysis", analysis) for analysis in analyses
-                ], indent=2)
-
-                # Get prompts for personality generation
-                system_prompt = self.prompts["personality_generation"]["system_prompt"]
-                user_prompt = self.prompts["personality_generation"]["profile_prompt"].format(
-                    analyses=analyses_text
-                )
-
-                # Generate personality profile using structured response
-                profile_response = llm_service.generate_structured_response(
-                    system_prompt=system_prompt,
-                    user_prompt=user_prompt,
-                    schema=self.personality_schema
-                )
-
-                # Convert to PersonalityAnalysis dataclass
-                personality_analysis = PersonalityAnalysis.from_dict(profile_response)
-                response = json.dumps(profile_response)
-
-                # Create complete profile data
-                profile_data = {
-                    "user_id": user_id,
-                    "profile": personality_analysis.to_dict(),
-                    "analysis_type": "legacy_analysis",
-                    "source_analyses_count": len(analyses),
-                    "raw_response": response
-                }
-
-                logger.info(f"Successfully generated personality profile (legacy) for user {user_id}")
-                return profile_data
-
-        except Exception as e:
-            logger.error(f"Error generating personality profile: {e}")
-            raise
-    
-    def update_personality_profile(
-        self, 
-        user_id: str = "default", 
-        new_analyses: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
-        """
-        Update an existing personality profile with new story analyses.
-        
-        Args:
-            user_id: User identifier for the profile
-            new_analyses: Optional new analyses to incorporate
-        
-        Returns:
-            Updated personality profile
-        """
-        try:
-            # Get existing profile
-            existing_profile = supabase_client.get_personality_profile(user_id)
-            
-            # Get all analyses if new ones not provided
-            if new_analyses is None:
-                new_analyses = supabase_client.get_story_analyses()
-            
-            # Generate new profile
-            updated_profile = self.generate_personality_profile(new_analyses, user_id)
-            
-            # If there's an existing profile, note the update
-            if existing_profile:
-                updated_profile["previous_version"] = existing_profile.get("created_at")
-                updated_profile["update_reason"] = "new_analyses_added"
-            
-            # Store updated profile
-            supabase_client.insert_personality_profile(updated_profile)
-            
-            logger.info(f"Updated personality profile for user {user_id}")
-            return updated_profile
-            
-        except Exception as e:
-            logger.error(f"Error updating personality profile: {e}")
-            raise
-    
-    def get_personality_traits(self, user_id: str = "default") -> PersonalityTraits:
+    def get_personality(self, user_id: str = "default") -> Optional[PersonalityProfile]:
         """
         Extract key personality traits from the stored profile.
 
@@ -440,53 +157,9 @@ class PersonalityProfiler:
 
             if not personality_profile:
                 logger.warning(f"No personality profile found for user {user_id}")
-                return PersonalityTraits()
-
-            profile = personality_profile.profile
-
-            # Extract core values and motivations
-            core_values_motivations = profile.get("core_values_motivations", {})
-            communication_style_voice = profile.get("communication_style_voice", {})
-            cognitive_style_worldview = profile.get("cognitive_style_worldview", {})
-
-            # Extract key traits for easy access, mapping new structure to PersonalityTraits
-            return PersonalityTraits(
-                core_traits=[
-                    core_values_motivations.get("core_values", ""),
-                    core_values_motivations.get("motivational_drivers", "")
-                ],
-                communication_style={
-                    "formality_vocabulary": communication_style_voice.get("formality_vocabulary", ""),
-                    "tone": communication_style_voice.get("tone", ""),
-                    "sentence_structure": communication_style_voice.get("sentence_structure", ""),
-                    "emotional_expression": communication_style_voice.get("emotional_expression", ""),
-                    "storytelling_style": communication_style_voice.get("storytelling_style", "")
-                },
-                emotional_patterns={
-                    "emotional_expression": communication_style_voice.get("emotional_expression", ""),
-                    "stress_response": cognitive_style_worldview.get("stress_response", "")
-                },
-                values=[
-                    core_values_motivations.get("core_values", ""),
-                    core_values_motivations.get("anti_values", "")
-                ],
-                behavioral_tendencies=[
-                    cognitive_style_worldview.get("thinking_process", ""),
-                    cognitive_style_worldview.get("decision_making", ""),
-                    cognitive_style_worldview.get("learning_style", "")
-                ],
-                relationship_approach={
-                    "communication_style": communication_style_voice.get("tone", ""),
-                    "emotional_expression": communication_style_voice.get("emotional_expression", ""),
-                    "value_conflicts": core_values_motivations.get("value_conflicts", "")
-                },
-                decision_making={
-                    "decision_making": cognitive_style_worldview.get("decision_making", ""),
-                    "thinking_process": cognitive_style_worldview.get("thinking_process", ""),
-                    "outlook": cognitive_style_worldview.get("outlook", ""),
-                    "focus": cognitive_style_worldview.get("focus", "")
-                }
-            )
+                return None
+            
+            return personality_profile
 
         except Exception as e:
             logger.error(f"Error extracting personality traits: {e}")
@@ -503,10 +176,10 @@ class PersonalityProfiler:
             Natural language personality summary
         """
         try:
-            traits = self.get_personality_traits(user_id)
+            personality = self.get_personality(user_id)
             
-            if not traits:
-                return "No personality profile available."
+            if not personality:
+                return ""
             
             system_prompt = """You are an expert at creating natural, engaging personality summaries. 
             Create a flowing narrative that captures the essence of this person's personality."""
@@ -514,7 +187,7 @@ class PersonalityProfiler:
             user_prompt = f"""Based on the following personality traits, write a natural, engaging summary 
             that captures who this person is, how they think, feel, and interact with the world:
             
-            {json.dumps(traits, indent=2)}
+            {json.dumps(personality, indent=2)}
             
             Write in a warm, insightful tone that feels like it's describing a real person you know well."""
             
@@ -528,80 +201,6 @@ class PersonalityProfiler:
         except Exception as e:
             logger.error(f"Error generating personality summary: {e}")
             raise
-    
-    def create_profile_from_stories(self, user_id: str = "default") -> PersonalityPipelineResult:
-        """
-        Complete pipeline to create a personality profile from all available story analyses.
-
-        Args:
-            user_id: User identifier
-
-        Returns:
-            PersonalityPipelineResult instance containing complete personality profile data
-        """
-        try:
-            # Get all story analyses (now returns StoryAnalysis objects)
-            analyses = supabase_client.get_story_analyses()
-
-            if not analyses:
-                logger.warning("No story analyses found for personality profile generation")
-                return PersonalityPipelineResult(
-                    status="no_analyses",
-                    profile=PersonalityProfile(),
-                    summary="No analyses available for profile generation",
-                    source_analyses=0
-                )
-
-            # Convert StoryAnalysis objects to the expected format for personality generation
-            analyses_dict = []
-            for analysis in analyses:
-                # Convert to extraction format for personality generation
-                extraction_result = {
-                    "trigger": {
-                        "title": analysis.trigger_title,
-                        "description": analysis.trigger_description,
-                        "category": analysis.trigger_category
-                    } if analysis.trigger_title else None,
-                    "feelings": {"emotions": analysis.emotions},
-                    "thought": {
-                        "internal_monologue": analysis.internal_monologue
-                    } if analysis.internal_monologue else None,
-                    "value_analysis": {
-                        "violated_value": analysis.violated_value,
-                        "reasoning": analysis.value_reasoning,
-                        "confidence_score": analysis.confidence_score
-                    } if analysis.violated_value else None
-                }
-                analyses_dict.append({"extraction_results": extraction_result})
-
-            # Generate personality profile
-            profile_data = self.generate_personality_profile(analyses_dict, user_id)
-
-            # Store in database (convert to PersonalityProfile if needed)
-            if isinstance(profile_data, dict):
-                personality_profile = PersonalityProfile.from_dict(profile_data)
-            else:
-                personality_profile = profile_data
-
-            stored_profile = supabase_client.insert_personality_profile(personality_profile)
-
-            # Generate summary
-            summary = self.generate_personality_summary(user_id)
-
-            result = PersonalityPipelineResult(
-                status="success",
-                profile=stored_profile,
-                summary=summary,
-                source_analyses=len(analyses)
-            )
-
-            logger.info(f"Created complete personality profile for user {user_id}")
-            return result
-
-        except Exception as e:
-            logger.error(f"Error creating personality profile: {e}")
-            raise
-
 
 # Global personality profiler instance
 personality_profiler = PersonalityProfiler()
