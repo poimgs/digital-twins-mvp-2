@@ -184,19 +184,45 @@ class PersonalityProfiler:
             profile = personality_profile.profile
             analysis_type = profile.get("analysis_type", "unknown")
 
-            # Get profile components
+            # Get profile components with enhanced structure
             core_values = profile.get("core_values_motivations", {})
             communication = profile.get("communication_style_voice", {})
             cognitive = profile.get("cognitive_style_worldview", {})
+
+            # Create a comprehensive personality summary for the persona document
+            personality_summary = {
+                "core_values_motivations": {
+                    "core_values": core_values.get("core_values", ""),
+                    "anti_values": core_values.get("anti_values", ""),
+                    "motivational_drivers": core_values.get("motivational_drivers", ""),
+                    "value_conflicts": core_values.get("value_conflicts", "")
+                },
+                "communication_style_voice": {
+                    "formality_vocabulary": communication.get("formality_vocabulary", ""),
+                    "tone": communication.get("tone", ""),
+                    "sentence_structure": communication.get("sentence_structure", ""),
+                    "recurring_phrases_metaphors": communication.get("recurring_phrases_metaphors", ""),
+                    "emotional_expression": communication.get("emotional_expression", ""),
+                    "storytelling_style": communication.get("storytelling_style", "")
+                },
+                "cognitive_style_worldview": {
+                    "thinking_process": cognitive.get("thinking_process", ""),
+                    "outlook": cognitive.get("outlook", ""),
+                    "focus": cognitive.get("focus", ""),
+                    "learning_style": cognitive.get("learning_style", ""),
+                    "decision_making": cognitive.get("decision_making", ""),
+                    "stress_response": cognitive.get("stress_response", "")
+                }
+            }
 
             # Generate the persona document
             system_prompt = self.prompts["persona_generation"]["system_prompt"]
             user_prompt = self.prompts["persona_generation"]["document_prompt"].format(
                 user_name=user_name,
                 analysis_type=analysis_type,
-                core_values=json.dumps(core_values, indent=2),
-                communication_style=json.dumps(communication, indent=2),
-                cognitive_style=json.dumps(cognitive, indent=2)
+                core_values=json.dumps(personality_summary["core_values_motivations"], indent=2),
+                communication_style=json.dumps(personality_summary["communication_style_voice"], indent=2),
+                cognitive_style=json.dumps(personality_summary["cognitive_style_worldview"], indent=2)
             )
 
             persona_document = llm_service.generate_completion(
@@ -418,15 +444,48 @@ class PersonalityProfiler:
 
             profile = personality_profile.profile
 
-            # Extract key traits for easy access
+            # Extract core values and motivations
+            core_values_motivations = profile.get("core_values_motivations", {})
+            communication_style_voice = profile.get("communication_style_voice", {})
+            cognitive_style_worldview = profile.get("cognitive_style_worldview", {})
+
+            # Extract key traits for easy access, mapping new structure to PersonalityTraits
             return PersonalityTraits(
-                core_traits=profile.get("core_personality_traits", []),
-                communication_style=profile.get("communication_style", {}),
-                emotional_patterns=profile.get("emotional_patterns", {}),
-                values=profile.get("values_and_motivations", []),
-                behavioral_tendencies=profile.get("behavioral_tendencies", []),
-                relationship_approach=profile.get("relationship_approach", {}),
-                decision_making=profile.get("decision_making_style", {})
+                core_traits=[
+                    core_values_motivations.get("core_values", ""),
+                    core_values_motivations.get("motivational_drivers", "")
+                ],
+                communication_style={
+                    "formality_vocabulary": communication_style_voice.get("formality_vocabulary", ""),
+                    "tone": communication_style_voice.get("tone", ""),
+                    "sentence_structure": communication_style_voice.get("sentence_structure", ""),
+                    "emotional_expression": communication_style_voice.get("emotional_expression", ""),
+                    "storytelling_style": communication_style_voice.get("storytelling_style", "")
+                },
+                emotional_patterns={
+                    "emotional_expression": communication_style_voice.get("emotional_expression", ""),
+                    "stress_response": cognitive_style_worldview.get("stress_response", "")
+                },
+                values=[
+                    core_values_motivations.get("core_values", ""),
+                    core_values_motivations.get("anti_values", "")
+                ],
+                behavioral_tendencies=[
+                    cognitive_style_worldview.get("thinking_process", ""),
+                    cognitive_style_worldview.get("decision_making", ""),
+                    cognitive_style_worldview.get("learning_style", "")
+                ],
+                relationship_approach={
+                    "communication_style": communication_style_voice.get("tone", ""),
+                    "emotional_expression": communication_style_voice.get("emotional_expression", ""),
+                    "value_conflicts": core_values_motivations.get("value_conflicts", "")
+                },
+                decision_making={
+                    "decision_making": cognitive_style_worldview.get("decision_making", ""),
+                    "thinking_process": cognitive_style_worldview.get("thinking_process", ""),
+                    "outlook": cognitive_style_worldview.get("outlook", ""),
+                    "focus": cognitive_style_worldview.get("focus", "")
+                }
             )
 
         except Exception as e:

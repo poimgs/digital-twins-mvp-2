@@ -27,30 +27,6 @@ class SupabaseClient:
         self.client: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
     
     # Stories table operations
-    def insert_story(self, story: Story) -> Story:
-        """
-        Insert a new story into the stories table.
-
-        Args:
-            story: Story instance to insert
-
-        Returns:
-            The inserted Story instance
-        """
-        try:
-            story_dict = story.to_dict()
-            # Remove None values for insert
-            story_dict = {k: v for k, v in story_dict.items() if v is not None}
-
-            result = self.client.table("stories").insert(story_dict).execute()
-            if result.data:
-                return Story.from_dict(result.data[0])
-            else:
-                return story
-        except Exception as e:
-            logger.error(f"Error inserting story: {e}")
-            raise
-
     def get_stories(self, limit: Optional[int] = None) -> List[Story]:
         """
         Retrieve all stories from the database.
@@ -228,31 +204,6 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Error retrieving conversation history: {e}")
             raise
-
-    # Backward compatibility methods for existing code that expects dictionaries
-    def insert_story_dict(self, story_data: dict) -> dict:
-        """Backward compatibility method for inserting story from dictionary."""
-        story = Story.from_dict(story_data)
-        result = self.insert_story(story)
-        return result.to_dict()
-
-    def insert_story_analysis_dict(self, analysis_data: dict) -> dict:
-        """Backward compatibility method for inserting analysis from dictionary."""
-        analysis = StoryAnalysis.from_dict(analysis_data)
-        result = self.insert_story_analysis(analysis)
-        return result.to_dict()
-
-    def insert_personality_profile_dict(self, profile_data: dict) -> dict:
-        """Backward compatibility method for inserting profile from dictionary."""
-        profile = PersonalityProfile.from_dict(profile_data)
-        result = self.insert_personality_profile(profile)
-        return result.to_dict()
-
-    def insert_conversation_message_dict(self, message_data: dict) -> dict:
-        """Backward compatibility method for inserting message from dictionary."""
-        message = ConversationMessage.from_dict(message_data)
-        result = self.insert_conversation_message(message)
-        return result.to_dict()
 
 
 # Global Supabase client instance

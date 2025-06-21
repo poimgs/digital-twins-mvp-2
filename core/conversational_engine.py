@@ -4,7 +4,6 @@ Implements conversation-focused state management with dynamic context tracking,
 intelligent story repetition handling, and contextual awareness.
 """
 
-import json
 import logging
 import uuid
 from typing import Dict, List, Any, Optional
@@ -12,7 +11,7 @@ from datetime import datetime, timezone
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
 from core.utils import load_prompts
-from core.models import Story, StoryAnalysis, PersonalityProfile, ConversationMessage, UserInputAnalysis
+from core.models import PersonalityProfile, ConversationMessage, UserInputAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -990,7 +989,37 @@ class ConversationalEngine:
 
             personality_summary = ""
             if state.personality_profile:
-                personality_summary = json.dumps(state.personality_profile.profile, indent=2)
+                # Create a more structured and readable personality summary for the digital twin
+                profile = state.personality_profile.profile
+                core_values = profile.get("core_values_motivations", {})
+                communication = profile.get("communication_style_voice", {})
+                cognitive = profile.get("cognitive_style_worldview", {})
+
+                personality_summary = f"""
+PERSONALITY PROFILE:
+
+CORE VALUES & MOTIVATIONS:
+- Core Values: {core_values.get('core_values', 'Not specified')}
+- Anti-Values: {core_values.get('anti_values', 'Not specified')}
+- Motivational Drivers: {core_values.get('motivational_drivers', 'Not specified')}
+- Value Conflicts: {core_values.get('value_conflicts', 'Not specified')}
+
+COMMUNICATION STYLE & VOICE:
+- Formality & Vocabulary: {communication.get('formality_vocabulary', 'Not specified')}
+- Tone: {communication.get('tone', 'Not specified')}
+- Sentence Structure: {communication.get('sentence_structure', 'Not specified')}
+- Recurring Phrases/Metaphors: {communication.get('recurring_phrases_metaphors', 'Not specified')}
+- Emotional Expression: {communication.get('emotional_expression', 'Not specified')}
+- Storytelling Style: {communication.get('storytelling_style', 'Not specified')}
+
+COGNITIVE STYLE & WORLDVIEW:
+- Thinking Process: {cognitive.get('thinking_process', 'Not specified')}
+- Outlook: {cognitive.get('outlook', 'Not specified')}
+- Focus: {cognitive.get('focus', 'Not specified')}
+- Learning Style: {cognitive.get('learning_style', 'Not specified')}
+- Decision Making: {cognitive.get('decision_making', 'Not specified')}
+- Stress Response: {cognitive.get('stress_response', 'Not specified')}
+"""
 
             stories_context = ""
             used_story_ids = []

@@ -70,20 +70,10 @@ class StoryAnalysis:
 
     id: UUID = field(default_factory=uuid.uuid4)
     story_id: UUID = field(default_factory=uuid.uuid4)
-    # Trigger information
-    trigger_title: Optional[str] = None
-    trigger_description: Optional[str] = None
-    trigger_category: Optional[str] = None
-    # Feelings/emotions
+    triggers: List[str] = field(default_factory=list)
     emotions: List[str] = field(default_factory=list)
-    # Thought/internal monologue
-    internal_monologue: Optional[str] = None
-    # Value analysis
-    violated_value: Optional[str] = None
-    value_reasoning: Optional[str] = None
-    confidence_score: Optional[int] = None
-    # Keep raw response for debugging/audit
-    raw_response: Optional[str] = None
+    thoughts: List[str] = field(default_factory=list)
+    values: List[str] = field(default_factory=list)
     created_at: Optional[datetime] = None
     
     @classmethod
@@ -110,14 +100,10 @@ class StoryAnalysis:
         return cls(
             id=analysis_id,
             story_id=story_id,
-            trigger_title=data.get('trigger_title'),
-            trigger_description=data.get('trigger_description'),
-            trigger_category=data.get('trigger_category'),
+            triggers=data.get('triggers', []),
             emotions=data.get('emotions', []),
-            internal_monologue=data.get('internal_monologue'),
-            violated_value=data.get('violated_value'),
-            value_reasoning=data.get('value_reasoning'),
-            confidence_score=data.get('confidence_score'),
+            thoughts=data.get('thoughts', []),
+            values=data.get('values', []),
             raw_response=data.get('raw_response'),
             created_at=created_at
         )
@@ -127,14 +113,10 @@ class StoryAnalysis:
         return {
             'id': str(self.id),
             'story_id': str(self.story_id),
-            'trigger_title': self.trigger_title,
-            'trigger_description': self.trigger_description,
-            'trigger_category': self.trigger_category,
+            'triggers': self.triggers,
             'emotions': self.emotions,
-            'internal_monologue': self.internal_monologue,
-            'violated_value': self.violated_value,
-            'value_reasoning': self.value_reasoning,
-            'confidence_score': self.confidence_score,
+            'thoughts': self.thoughts,
+            'values': self.values,
             'raw_response': self.raw_response,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
@@ -260,99 +242,6 @@ def story_analyses_from_dict_list(data_list: List[Dict[str, Any]]) -> List[Story
 def conversation_messages_from_dict_list(data_list: List[Dict[str, Any]]) -> List[ConversationMessage]:
     """Convert a list of dictionaries to a list of ConversationMessage instances."""
     return [ConversationMessage.from_dict(data) for data in data_list]
-
-
-# Schema-based dataclasses for structured responses
-@dataclass
-class TriggerExtraction:
-    """Data class for trigger extraction results."""
-
-    title: str
-    description: str
-    category: str
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'TriggerExtraction':
-        """Create a TriggerExtraction instance from a dictionary."""
-        return cls(
-            title=data.get('title', ''),
-            description=data.get('description', ''),
-            category=data.get('category', '')
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert TriggerExtraction instance to dictionary."""
-        return {
-            'title': self.title,
-            'description': self.description,
-            'category': self.category
-        }
-
-
-@dataclass
-class FeelingsExtraction:
-    """Data class for feelings extraction results."""
-
-    emotions: List[str] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'FeelingsExtraction':
-        """Create a FeelingsExtraction instance from a dictionary."""
-        return cls(
-            emotions=data.get('emotions', [])
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert FeelingsExtraction instance to dictionary."""
-        return {
-            'emotions': self.emotions
-        }
-
-
-@dataclass
-class ThoughtExtraction:
-    """Data class for thought extraction results."""
-
-    internal_monologue: str
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ThoughtExtraction':
-        """Create a ThoughtExtraction instance from a dictionary."""
-        return cls(
-            internal_monologue=data.get('internal_monologue', '')
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert ThoughtExtraction instance to dictionary."""
-        return {
-            'internal_monologue': self.internal_monologue
-        }
-
-
-@dataclass
-class ValueAnalysisExtraction:
-    """Data class for value analysis extraction results."""
-
-    violated_value: str
-    reasoning: str
-    confidence_score: int
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ValueAnalysisExtraction':
-        """Create a ValueAnalysisExtraction instance from a dictionary."""
-        return cls(
-            violated_value=data.get('violated_value', ''),
-            reasoning=data.get('reasoning', ''),
-            confidence_score=data.get('confidence_score', 1)
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert ValueAnalysisExtraction instance to dictionary."""
-        return {
-            'violated_value': self.violated_value,
-            'reasoning': self.reasoning,
-            'confidence_score': self.confidence_score
-        }
 
 
 @dataclass
@@ -537,20 +426,26 @@ class CoreValuesMotivations:
 
     core_values: str = ""
     anti_values: str = ""
+    motivational_drivers: str = ""
+    value_conflicts: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CoreValuesMotivations':
         """Create a CoreValuesMotivations instance from a dictionary."""
         return cls(
             core_values=data.get('core_values', ''),
-            anti_values=data.get('anti_values', '')
+            anti_values=data.get('anti_values', ''),
+            motivational_drivers=data.get('motivational_drivers', ''),
+            value_conflicts=data.get('value_conflicts', '')
         )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert CoreValuesMotivations instance to dictionary."""
         return {
             'core_values': self.core_values,
-            'anti_values': self.anti_values
+            'anti_values': self.anti_values,
+            'motivational_drivers': self.motivational_drivers,
+            'value_conflicts': self.value_conflicts
         }
 
 
@@ -562,6 +457,8 @@ class CommunicationStyleVoice:
     tone: str = ""
     sentence_structure: str = ""
     recurring_phrases_metaphors: str = ""
+    emotional_expression: str = ""
+    storytelling_style: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CommunicationStyleVoice':
@@ -570,7 +467,9 @@ class CommunicationStyleVoice:
             formality_vocabulary=data.get('formality_vocabulary', ''),
             tone=data.get('tone', ''),
             sentence_structure=data.get('sentence_structure', ''),
-            recurring_phrases_metaphors=data.get('recurring_phrases_metaphors', '')
+            recurring_phrases_metaphors=data.get('recurring_phrases_metaphors', ''),
+            emotional_expression=data.get('emotional_expression', ''),
+            storytelling_style=data.get('storytelling_style', '')
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -579,7 +478,9 @@ class CommunicationStyleVoice:
             'formality_vocabulary': self.formality_vocabulary,
             'tone': self.tone,
             'sentence_structure': self.sentence_structure,
-            'recurring_phrases_metaphors': self.recurring_phrases_metaphors
+            'recurring_phrases_metaphors': self.recurring_phrases_metaphors,
+            'emotional_expression': self.emotional_expression,
+            'storytelling_style': self.storytelling_style
         }
 
 
@@ -590,6 +491,9 @@ class CognitiveStyleWorldview:
     thinking_process: str = ""
     outlook: str = ""
     focus: str = ""
+    learning_style: str = ""
+    decision_making: str = ""
+    stress_response: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CognitiveStyleWorldview':
@@ -597,7 +501,10 @@ class CognitiveStyleWorldview:
         return cls(
             thinking_process=data.get('thinking_process', ''),
             outlook=data.get('outlook', ''),
-            focus=data.get('focus', '')
+            focus=data.get('focus', ''),
+            learning_style=data.get('learning_style', ''),
+            decision_making=data.get('decision_making', ''),
+            stress_response=data.get('stress_response', '')
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -605,7 +512,10 @@ class CognitiveStyleWorldview:
         return {
             'thinking_process': self.thinking_process,
             'outlook': self.outlook,
-            'focus': self.focus
+            'focus': self.focus,
+            'learning_style': self.learning_style,
+            'decision_making': self.decision_making,
+            'stress_response': self.stress_response
         }
 
 

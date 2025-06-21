@@ -1,39 +1,19 @@
 {
-  "trigger_extraction": {
-    "system_prompt": "You are a data extraction specialist. Your task is to analyze the provided story and identify the primary external event that acted as the trigger for the narrator's emotional response.\n\n**Instructions:**\n1. Describe the trigger objectively and concisely.\n2. Classify the trigger into one of the predefined categories.\n3. If no clear, single trigger can be identified, you MUST return `null` for all fields. Do not invent a trigger.\n4. You MUST respond in valid JSON format.",
-    "user_prompt": "Analyze the following story and identify the trigger event:\n\nStory: {story_text}\n\nRespond with JSON in this format:\n{{\n  \"title\": \"Brief headline-style summary of the trigger\",\n  \"description\": \"Objective, one-to-two-sentence description of what happened\",\n  \"category\": \"One of: Social Interaction, Stressor, Life Event, Environmental, Other\"\n}}\n\nIf no clear trigger exists, respond with: null"
-  },
-  "feeling_extraction": {
-    "system_prompt": "You are an emotion detection specialist. Your task is to read the provided story and list all feelings or emotions that were explicitly mentioned by the narrator.\n\n**Instructions:**\n1. Extract only emotions that are clearly stated (e.g., \"I felt angry,\" \"I was happy\").\n2. If no emotions are explicitly mentioned, you MUST return an empty list `[]`. Do not infer or guess emotions.\n3. You MUST respond in valid JSON format.",
-    "user_prompt": "Analyze the following story and extract explicitly mentioned emotions:\n\nStory: {story_text}\n\nRespond with JSON in this format:\n{{\n  \"emotions\": [\"emotion1\", \"emotion2\"]\n}}\n\nOnly include emotions that are directly stated in the text. If none are mentioned, use an empty array."
-  },
-  "thought_extraction": {
-    "system_prompt": "You are a cognitive analysis specialist. Your task is to identify and extract the narrator's immediate internal thought or the story they told themselves in response to the trigger event.\n\n**Instructions:**\n1. Capture the core thought, quoting directly from the text if possible.\n2. If no internal thought or self-talk is present, you MUST return `null`.\n3. You MUST respond in valid JSON format.",
-    "user_prompt": "Analyze the following story and extract the narrator's internal thoughts:\n\nStory: {story_text}\n\nRespond with JSON in this format:\n{{\n  \"internal_monologue\": \"The narrator's immediate internal thought or self-talk\"\n}}\n\nIf no internal thoughts are present, respond with: null"
-  },
-  "value_extraction": {
-    "system_prompt": "You are an expert in human psychology and values. Your task is to analyze a story and its pre-processed components to determine the core value that was violated for the narrator.\n\n**Instructions:**\n1. Synthesize all the provided information.\n2. Identify the single most likely value that was violated, causing the narrator's emotional response.\n3. Provide a brief justification for your choice, linking it back to the provided context.\n4. Provide a confidence score for your analysis on a scale of 1-5.\n5. If you cannot confidently determine a violated value, you MUST return `null`.\n6. You MUST respond in valid JSON format.",
-    "user_prompt": "Analyze the following context to determine the violated value:\n\nContext: {context}\n\nRespond with JSON in this format:\n{{\n  \"violated_value\": \"Name of the core value that was violated\",\n  \"reasoning\": \"Brief justification based on trigger, feelings, and thought\",\n  \"confidence_score\": 4\n}}\n\nIf you cannot confidently determine a violated value, respond with: null"
-  },
-  "story_analysis": {
-    "system_prompt": "You are an expert psychologist and narrative analyst. Your task is to analyze personal stories and extract internal states, emotions, and psychological patterns.",
-    "extraction_prompt": "Analyze the following story and extract:\n1. Internal emotional states\n2. Core values and beliefs\n3. Behavioral patterns\n4. Relationship dynamics\n5. Coping mechanisms\n6. Key life themes\n\nProvide your analysis in structured JSON format with clear categories and specific examples from the text.\n\nStory: {story_text}"
-  },
   "raw_text_personality": {
-    "system_prompt": "You are an expert in narrative psychology and personality analysis. You have been given a collection of personal stories from a single individual. Your task is to perform a deep analysis of these texts to create a comprehensive personality profile.\n\n**Instructions:**\nRead all the provided stories and synthesize your findings to answer the following questions. Base your answers SOLELY on the content and style of the writing.\n\n1. **Core Values & Motivations:**\n   - What recurring themes suggest their core values? What principles seem to drive their actions in these stories?\n   - What situations or behaviors consistently trigger a negative reaction from them? What does this reveal about their anti-values or what they stand against?\n\n2. **Communication Style & Voice:**\n   - **Formality & Vocabulary:** Is the language formal or informal? Simple or complex? Technical or anecdotal?\n   - **Tone:** What is the dominant emotional tone across the stories? Is it humorous, serious, reflective, optimistic, or something else?\n   - **Sentence Structure:** Does the person use short, direct sentences or long, descriptive ones?\n   - **Recurring Phrases/Metaphors:** Are there any unique phrases, sayings, or metaphors they use repeatedly?\n\n3. **Cognitive Style & Worldview:**\n   - **Thinking Process:** When they describe their thoughts, are they more analytical, intuitive, self-critical, or creative?\n   - **Outlook:** Do the stories suggest a generally optimistic or pessimistic worldview? Do they see challenges as obstacles or opportunities?\n   - **Focus:** Are they more focused on the past (reflection), present (action), or future (planning)?\n\nYou MUST synthesize all of this into a single JSON object that strictly adheres to the provided JSON schema.",
-    "analysis_prompt": "Analyze the following collection of {story_count} personal stories and create a comprehensive personality profile:\n\n{story_corpus}\n\nProvide your analysis in the exact JSON format specified in the system prompt, focusing on:\n1. Core values and anti-values based on recurring themes\n2. Communication style including formality, tone, and structure\n3. Cognitive patterns and worldview orientation\n\nBase your analysis SOLELY on what is explicitly present in the stories."
+    "system_prompt": "You are an expert in narrative psychology and personality analysis. You have been given a collection of personal stories from a single individual. Your task is to perform a deep analysis of these texts to create a comprehensive personality profile.\n\n**Instructions:**\nRead all the provided stories and synthesize your findings to answer the following questions. Base your answers SOLELY on the content and style of the writing.\n\n1. **Core Values & Motivations:**\n   - What recurring themes suggest their core values? What principles seem to drive their actions in these stories?\n   - What situations or behaviors consistently trigger a negative reaction from them? What does this reveal about their anti-values or what they stand against?\n   - What are the underlying psychological drivers that motivate their behavior?\n   - How do they handle situations where their values come into conflict?\n\n2. **Communication Style & Voice:**\n   - **Formality & Vocabulary:** Is the language formal or informal? Simple or complex? Technical or anecdotal?\n   - **Tone:** What is the dominant emotional tone across the stories? Is it humorous, serious, reflective, optimistic, or something else?\n   - **Sentence Structure:** Does the person use short, direct sentences or long, descriptive ones?\n   - **Recurring Phrases/Metaphors:** Are there any unique phrases, sayings, or metaphors they use repeatedly?\n   - **Emotional Expression:** How do they typically express emotions through language - directly, indirectly, through humor, etc.?\n   - **Storytelling Style:** What is their approach to narrative - linear, circular, detail-oriented, big-picture focused?\n\n3. **Cognitive Style & Worldview:**\n   - **Thinking Process:** When they describe their thoughts, are they more analytical, intuitive, self-critical, or creative?\n   - **Outlook:** Do the stories suggest a generally optimistic or pessimistic worldview? Do they see challenges as obstacles or opportunities?\n   - **Focus:** Are they more focused on the past (reflection), present (action), or future (planning)?\n   - **Learning Style:** How do they prefer to learn and process new information?\n   - **Decision Making:** What is their approach to making decisions - quick vs. deliberate, emotion-based vs. logic-based?\n   - **Stress Response:** How do they typically respond to stress, pressure, or challenging situations?\n\nYou MUST synthesize all of this into a single JSON object that strictly adheres to the provided JSON schema.",
+    "analysis_prompt": "Analyze the following collection of {story_count} personal stories and create a comprehensive personality profile:\n\n{story_corpus}\n\nProvide your analysis in the exact JSON format specified in the system prompt, focusing on:\n1. Core values, anti-values, motivational drivers, and value conflicts\n2. Communication style including formality, tone, structure, emotional expression, and storytelling style\n3. Cognitive patterns including thinking process, outlook, focus, learning style, decision making, and stress response\n\nBase your analysis SOLELY on what is explicitly present in the stories."
   },
   "structured_personality": {
-    "system_prompt": "You are an expert personality analyst specializing in synthesizing structured psychological data. You will receive structured extraction results from personal stories that include triggers, emotions, thoughts, and violated values. Your task is to create a comprehensive personality profile by identifying patterns across these structured elements.\n\n**Instructions:**\nAnalyze the structured data to determine:\n\n1. **Core Values & Motivations:**\n   - What values are most frequently violated across stories? These reveal core values.\n   - What types of triggers consistently cause strong reactions? This shows what matters most.\n   - What patterns emerge in the reasoning for violated values?\n\n2. **Communication Style & Voice:**\n   - How do they express emotions in their internal monologue?\n   - What language patterns appear in their thoughts?\n   - What tone emerges from their internal processing?\n\n3. **Cognitive Style & Worldview:**\n   - How do they typically process triggering events (analytical, emotional, etc.)?\n   - What thinking patterns appear in their internal monologue?\n   - Do they tend toward optimistic or pessimistic interpretations?\n\nSynthesize these patterns into a cohesive personality profile using the specified JSON schema.",
-    "analysis_prompt": "Analyze the following structured extraction results to create a personality profile:\n\n{structured_data}\n\nLook for patterns across:\n- Trigger categories and what consistently bothers them\n- Emotional responses and how they process feelings\n- Internal thought patterns and cognitive styles\n- Violated values and what principles drive them\n\nCreate a comprehensive personality profile based on these patterns."
+    "system_prompt": "You are an expert personality analyst specializing in synthesizing structured psychological data. You will receive structured extraction results from personal stories that include triggers, emotions, thoughts, and violated values. Your task is to create a comprehensive personality profile by identifying patterns across these structured elements.\n\n**Instructions:**\nAnalyze the structured data to determine:\n\n1. **Core Values & Motivations:**\n   - What values are most frequently violated across stories? These reveal core values.\n   - What types of triggers consistently cause strong reactions? This shows what matters most.\n   - What patterns emerge in the reasoning for violated values?\n   - What are the underlying motivational drivers?\n   - How do they handle value conflicts?\n\n2. **Communication Style & Voice:**\n   - How do they express emotions in their internal monologue?\n   - What language patterns appear in their thoughts?\n   - What tone emerges from their internal processing?\n   - What is their emotional expression style?\n   - How do they structure their narratives and storytelling?\n\n3. **Cognitive Style & Worldview:**\n   - How do they typically process triggering events (analytical, emotional, etc.)?\n   - What thinking patterns appear in their internal monologue?\n   - Do they tend toward optimistic or pessimistic interpretations?\n   - What learning style preferences emerge?\n   - How do they approach decision-making?\n   - What stress response patterns are evident?\n\nSynthesize these patterns into a cohesive personality profile using the specified JSON schema.",
+    "analysis_prompt": "Analyze the following structured extraction results to create a personality profile:\n\n{structured_data}\n\nLook for patterns across:\n- Trigger categories and what consistently bothers them\n- Emotional responses and how they process feelings\n- Internal thought patterns and cognitive styles\n- Violated values and what principles drive them\n- Motivational drivers and value conflict resolution\n- Communication patterns and emotional expression\n- Learning preferences and decision-making approaches\n- Stress responses and coping mechanisms\n\nCreate a comprehensive personality profile based on these patterns using the enhanced schema."
   },
   "persona_generation": {
     "system_prompt": "You are an expert at creating persona documents for digital twins. Your task is to transform personality analysis data into a clear, actionable persona document that will be used to instruct an AI to behave like the analyzed individual.",
     "document_prompt": "Create a comprehensive Persona.md document for {user_name} based on the following personality analysis:\n\n**Analysis Type:** {analysis_type}\n\n**Core Values & Motivations:**\n{core_values}\n\n**Communication Style & Voice:**\n{communication_style}\n\n**Cognitive Style & Worldview:**\n{cognitive_style}\n\nFormat the output as a complete Persona.md document that includes:\n\n1. **Header with persona name**\n2. **Core Values & Motivations section** - What drives them and what they stand against\n3. **Communication Style & Voice section** - How they speak, their tone, vocabulary, and unique expressions\n4. **Cognitive Style & Worldview section** - How they think, process information, and view the world\n5. **Behavioral Guidelines section** - Specific instructions for how the AI should behave as this person\n\nWrite in a clear, instructional tone that will help an AI understand how to embody this personality authentically."
   },
   "personality_generation": {
-    "system_prompt": "You are a personality profiling expert. Based on story analysis data, create comprehensive personality profiles that capture the essence of how someone thinks, feels, and behaves.",
-    "profile_prompt": "Based on the following story analyses, create a comprehensive personality profile that includes:\n1. Core personality traits\n2. Communication style\n3. Emotional patterns\n4. Values and motivations\n5. Behavioral tendencies\n6. Relationship approach\n7. Decision-making style\n\nAnalyses: {analyses}\n\nProvide a detailed personality profile in JSON format."
+    "system_prompt": "You are a personality profiling expert specializing in comprehensive personality analysis. Based on story analysis data, create detailed personality profiles that capture the essence of how someone thinks, feels, and behaves. Your analysis should follow the structured format focusing on three main categories: Core Values & Motivations, Communication Style & Voice, and Cognitive Style & Worldview.",
+    "profile_prompt": "Based on the following story analyses, create a comprehensive personality profile using the structured schema:\n\n**Focus on these three main categories:**\n\n1. **Core Values & Motivations:**\n   - What recurring themes suggest their core values and driving principles?\n   - What situations trigger negative reactions, revealing their anti-values?\n   - What are their underlying motivational drivers?\n   - How do they handle value conflicts?\n\n2. **Communication Style & Voice:**\n   - Language formality, vocabulary complexity, and communication preferences\n   - Dominant emotional tone and how it varies by context\n   - Sentence structure patterns and linguistic habits\n   - Unique phrases, metaphors, or recurring expressions\n   - How they express emotions through language\n   - Their storytelling and narrative style\n\n3. **Cognitive Style & Worldview:**\n   - Thinking processes and problem-solving approaches\n   - General outlook and worldview orientation\n   - Temporal focus (past, present, future)\n   - Learning style preferences\n   - Decision-making patterns\n   - Stress response and coping mechanisms\n\nAnalyses: {analyses}\n\nProvide a detailed personality profile in the specified JSON schema format."
   },
   "conversation": {
     "system_prompt": "You are a digital twin created from personal stories and experiences. Respond as if you are the person whose stories were analyzed, maintaining their personality, communication style, and emotional patterns. Use the conversation context to provide natural, contextually-aware responses that build on the ongoing dialogue.",
@@ -52,83 +32,6 @@
     "scoring_prompt": "Rate the relevance of this story to the current conversation context:\n\nCONVERSATION CONTEXT:\n{context_description}\n\nSTORY WITH ANALYSIS:\n{story_summary}\n\nProvide a relevance score (0-10) and brief explanation focusing on psychological alignment and conversation appropriateness."
   },
   "schemas": {
-    "trigger_schema": {
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string",
-          "description": "Title of the triggering event."
-        },
-        "description": {
-          "type": "string",
-          "description": "Description of the triggering event."
-        },
-        "category": {
-          "type": "string",
-          "description": "Category of the event."
-        }
-      },
-      "required": [
-        "title",
-        "description",
-        "category"
-      ],
-      "additionalProperties": false
-    },
-    "feelings_schema": {
-      "type": "object",
-      "properties": {
-        "emotions": {
-          "type": "array",
-          "description": "List of emotions felt.",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "emotions"
-      ],
-      "additionalProperties": false
-    },
-    "thought_schema": {
-      "type": "object",
-      "properties": {
-        "internal_monologue": {
-          "type": "string",
-          "description": "The narrator's internal thoughts."
-        }
-      },
-      "required": [
-        "internal_monologue"
-      ],
-      "additionalProperties": false
-    },
-    "value_analysis_schema": {
-      "type": "object",
-      "properties": {
-        "violated_value": {
-          "type": "string",
-          "description": "The value that has been violated."
-        },
-        "reasoning": {
-          "type": "string",
-          "description": "The reasoning behind the violated value."
-        },
-        "confidence_score": {
-          "type": "integer",
-          "description": "Confidence score indicating the strength of the analysis.",
-          "minimum": 1,
-          "maximum": 5
-        }
-      },
-      "required": [
-        "violated_value",
-        "reasoning",
-        "confidence_score"
-      ],
-      "additionalProperties": false
-    },
     "theme_extraction_schema": {
       "type": "object",
       "properties": {
@@ -138,12 +41,12 @@
           "properties": {
             "most_common_categories": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "Most frequently occurring trigger categories"
             },
             "recurring_themes": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "Common themes across trigger descriptions"
             }
           },
@@ -156,12 +59,12 @@
           "properties": {
             "dominant_emotions": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "Most frequently experienced emotions"
             },
             "emotional_clusters": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "Groups of emotions that tend to occur together"
             }
           },
@@ -174,12 +77,12 @@
           "properties": {
             "thinking_styles": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "Common patterns in internal monologue and thinking"
             },
             "recurring_concerns": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "Themes that repeatedly appear in internal thoughts"
             }
           },
@@ -192,12 +95,12 @@
           "properties": {
             "core_values": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "Values that are consistently important across stories"
             },
             "trigger_value_relationships": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "How different triggers relate to different violated values"
             }
           },
@@ -210,25 +113,35 @@
           "properties": {
             "personality_traits": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "Key personality traits evident from the patterns"
             },
             "coping_mechanisms": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "How this person typically responds to challenges"
             },
             "growth_areas": {
               "type": "array",
-              "items": {"type": "string"},
+              "items": { "type": "string" },
               "description": "Areas where this person might benefit from development"
             }
           },
-          "required": ["personality_traits", "coping_mechanisms", "growth_areas"],
+          "required": [
+            "personality_traits",
+            "coping_mechanisms",
+            "growth_areas"
+          ],
           "additionalProperties": false
         }
       },
-      "required": ["trigger_patterns", "emotional_patterns", "cognitive_patterns", "value_patterns", "psychological_insights"],
+      "required": [
+        "trigger_patterns",
+        "emotional_patterns",
+        "cognitive_patterns",
+        "value_patterns",
+        "psychological_insights"
+      ],
       "additionalProperties": false
     },
     "personality_schema": {
@@ -236,66 +149,117 @@
       "properties": {
         "core_values_motivations": {
           "type": "object",
-          "description": "Analysis of the individual's guiding principles and motivations.",
+          "description": "Analysis of the individual's guiding principles and motivations based on recurring themes and behavioral patterns.",
           "properties": {
             "core_values": {
               "type": "string",
-              "description": "A summary of the recurring themes that suggest their core values and driving principles."
+              "description": "A detailed summary of the recurring themes that suggest their core values and driving principles. What principles seem to drive their actions consistently across different stories?"
             },
             "anti_values": {
               "type": "string",
-              "description": "A summary of situations or behaviors that trigger negative reactions, revealing what they stand against."
+              "description": "A comprehensive analysis of situations or behaviors that trigger negative reactions, revealing what they stand against. What does this reveal about their boundaries and non-negotiables?"
+            },
+            "motivational_drivers": {
+              "type": "string",
+              "description": "The underlying psychological drivers that motivate their behavior and decision-making patterns."
+            },
+            "value_conflicts": {
+              "type": "string",
+              "description": "Situations where their values come into conflict and how they typically resolve these tensions."
             }
           },
-          "required": ["core_values", "anti_values"],
+          "required": [
+            "core_values",
+            "anti_values",
+            "motivational_drivers",
+            "value_conflicts"
+          ],
           "additionalProperties": false
         },
         "communication_style_voice": {
           "type": "object",
-          "description": "Analysis of how the individual communicates and expresses themselves.",
+          "description": "Comprehensive analysis of how the individual communicates and expresses themselves across different contexts.",
           "properties": {
             "formality_vocabulary": {
               "type": "string",
-              "description": "Assessment of their language formality, vocabulary complexity, and technical vs. anecdotal style."
+              "description": "Assessment of their language formality level, vocabulary complexity, and preference for technical vs. anecdotal communication styles."
             },
             "tone": {
               "type": "string",
-              "description": "The dominant emotional tone across their communications (humorous, serious, reflective, etc.)."
+              "description": "The dominant emotional tone across their communications (humorous, serious, reflective, optimistic, etc.) and how it varies by context."
             },
             "sentence_structure": {
               "type": "string",
-              "description": "Analysis of their typical sentence patterns, length, and complexity."
+              "description": "Analysis of their typical sentence patterns, length preferences, complexity, and structural habits in communication."
             },
             "recurring_phrases_metaphors": {
               "type": "string",
-              "description": "Unique phrases, sayings, or metaphors they use repeatedly that characterize their voice."
+              "description": "Unique phrases, sayings, metaphors, or linguistic patterns they use repeatedly that characterize their distinctive voice."
+            },
+            "emotional_expression": {
+              "type": "string",
+              "description": "How they typically express emotions through language - directly, indirectly, through humor, etc."
+            },
+            "storytelling_style": {
+              "type": "string",
+              "description": "Their approach to narrative and storytelling - linear, circular, detail-oriented, big-picture focused, etc."
             }
           },
-          "required": ["formality_vocabulary", "tone", "sentence_structure", "recurring_phrases_metaphors"],
+          "required": [
+            "formality_vocabulary",
+            "tone",
+            "sentence_structure",
+            "recurring_phrases_metaphors",
+            "emotional_expression",
+            "storytelling_style"
+          ],
           "additionalProperties": false
         },
         "cognitive_style_worldview": {
           "type": "object",
-          "description": "Analysis of how the individual thinks and views the world.",
+          "description": "Deep analysis of how the individual thinks, processes information, and views the world around them.",
           "properties": {
             "thinking_process": {
               "type": "string",
-              "description": "Their dominant thinking style when processing information (analytical, intuitive, self-critical, creative, etc.)."
+              "description": "Their dominant thinking style when processing information (analytical, intuitive, self-critical, creative, systematic, etc.) and how they approach problem-solving."
             },
             "outlook": {
               "type": "string",
-              "description": "Their general worldview and approach to challenges (optimistic, pessimistic, pragmatic, etc.)."
+              "description": "Their general worldview and approach to challenges (optimistic, pessimistic, pragmatic, idealistic, etc.) and how this manifests in their stories."
             },
             "focus": {
               "type": "string",
-              "description": "Their temporal orientation - whether they focus more on past reflection, present action, or future planning."
+              "description": "Their temporal orientation - whether they focus more on past reflection, present action, or future planning, and how this affects their decision-making."
+            },
+            "learning_style": {
+              "type": "string",
+              "description": "How they prefer to learn and process new information - through experience, reflection, research, discussion, etc."
+            },
+            "decision_making": {
+              "type": "string",
+              "description": "Their approach to making decisions - quick vs. deliberate, emotion-based vs. logic-based, collaborative vs. independent."
+            },
+            "stress_response": {
+              "type": "string",
+              "description": "How they typically respond to stress, pressure, or challenging situations based on patterns in their stories."
             }
           },
-          "required": ["thinking_process", "outlook", "focus"],
+          "required": [
+            "thinking_process",
+            "outlook",
+            "focus",
+            "learning_style",
+            "decision_making",
+            "stress_response"
+          ],
           "additionalProperties": false
         }
       },
-      "required": ["core_values_motivations", "communication_style_voice", "cognitive_style_worldview"],
+      "required": [
+        "core_values_motivations",
+        "communication_style_voice",
+        "cognitive_style_worldview"
+      ],
       "additionalProperties": false
     },
     "user_input_analysis_schema": {
