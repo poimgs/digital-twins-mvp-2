@@ -89,7 +89,6 @@ class ChatInterface:
             print(f"Turn count: {state.state['turn_count']}")
             print(f"Current topics: {', '.join(state.state['current_topics']) if state.state['current_topics'] else 'None'}")
             print(f"User ID: {state.user_id}")
-            print(f"Profile loaded: {'Yes' if state.personality_profile else 'No'}")
             print(f"Stories told: {len(state.state['retrieved_story_history'])}")
             print("="*40 + "\n")
 

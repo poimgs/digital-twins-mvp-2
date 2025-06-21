@@ -362,7 +362,7 @@ class StoryRetrievalManager:
             logger.error(f"Error merging stories with analyses: {e}")
             return stories
 
-    def find_relevant_stories(self, conversation_context: Dict[str, Any], repetition_penalties: Optional[Dict[str, float]] = None, limit: int = 3) -> List[Dict[str, Any]]:
+    def find_relevant_stories(self, conversation_context: Dict[str, Any], limit: int = 3) -> List[Dict[str, Any]]:
         """
         Find the most relevant stories using enhanced multi-stage filtering and ranking.
 
@@ -375,10 +375,7 @@ class StoryRetrievalManager:
             List of relevant stories with comprehensive scoring details
         """
         try:
-            if repetition_penalties is None:
-                repetition_penalties = {}
-
-            # Get all stories with their analyses (now returns model objects)
+            # Get all stories with their analyses 
             stories = supabase_client.get_stories()
             story_analyses = supabase_client.get_story_analyses()
 
@@ -386,12 +383,8 @@ class StoryRetrievalManager:
                 logger.warning("No stories found in database")
                 return []
 
-            # Convert to dictionaries for backward compatibility with existing logic
-            stories_dict = [story.to_dict() for story in stories]
-            analyses_dict = [analysis.to_dict() for analysis in story_analyses]
-
             # Merge stories with their analyses
-            stories_with_analysis = self.merge_stories_with_analyses(stories_dict, analyses_dict)
+            stories_with_analysis = self.merge_stories_with_analyses(stories, story_analyses)
 
             logger.info(f"Using enhanced relevance pipeline for {len(stories_with_analysis)} stories")
 

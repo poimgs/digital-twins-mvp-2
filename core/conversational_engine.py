@@ -52,7 +52,7 @@ COMMUNICATION STYLE & VOICE:
             self.states[user_id] = ConversationalState(user_id)
         return self.states[user_id]
 
-    def find_relevant_stories(self, state: ConversationalState, limit: int = 3) -> List[Dict[str, Any]]:
+    def find_relevant_stories(self, user_message: str, summary: str, limit: int = 3) -> List[Dict[str, Any]]:
         """
         Find the most relevant stories using enhanced multi-stage filtering and ranking.
 
@@ -64,15 +64,6 @@ COMMUNICATION STYLE & VOICE:
             List of relevant stories with comprehensive scoring details
         """
         try:
-            conversation_context = state.get_conversation_context()
-
-            # Create repetition penalties dictionary from state
-            repetition_penalties = {}
-            for story_id in state.state.get("retrieved_story_history", []):
-                story_id_str = str(story_id.get("story_id", ""))
-                if story_id_str:
-                    repetition_penalties[story_id_str] = state.calculate_story_repetition_penalty(story_id_str)
-
             # Use the story retrieval manager
             return self.story_retrieval_manager.find_relevant_stories(
                 conversation_context=conversation_context,
@@ -199,7 +190,7 @@ COMMUNICATION STYLE & VOICE:
             state.add_user_message(user_message)
 
             # Find relevant stories using enhanced context
-            relevant_stories = self.find_relevant_stories(state)
+            relevant_stories = self.find_relevant_stories(user_message, state.summary)
 
             # Prepare enhanced context for response generation
             conversation_context = state.get_conversation_context()
