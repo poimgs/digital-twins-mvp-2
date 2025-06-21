@@ -11,6 +11,7 @@ import sys
 import logging
 from pathlib import Path
 from typing import Optional
+from core.models import Bot, generate_terminal_chat_id
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent
@@ -18,7 +19,7 @@ sys.path.insert(0, str(project_root))
 
 from config.settings import settings
 from core.conversational_engine import conversational_engine
-from core.personality import personality_profiler
+from core.supabase_client import supabase_client
 
 # Configure logging
 logging.basicConfig(
@@ -36,28 +37,72 @@ class ChatInterface:
         self.user_id = user_id
         self.engine = conversational_engine
         self.running = False
+        self.selected_bot: Optional[Bot] = None
+
+    def select_bot(self):
+        """Allow user to select a bot to chat with."""
+        try:
+            bots = supabase_client.get_bots(active_only=True)
+            if not bots:
+                print("\n❌ No active bots found. Please create a bot first.")
+                return False
+
+            print("\n" + "="*60)
+            print("🤖 SELECT A DIGITAL TWIN TO CHAT WITH")
+            print("="*60)
+
+            for i, bot in enumerate(bots, 1):
+                print(f"{i}. {bot.name}")
+                if bot.description:
+                    print(f"   {bot.description}")
+                print()
+
+            while True:
+                try:
+                    choice = input("Select a bot (enter number): ").strip()
+                    if choice.lower() in ['quit', 'exit', 'bye']:
+                        return False
+
+                    bot_index = int(choice) - 1
+                    if 0 <= bot_index < len(bots):
+                        self.selected_bot = bots[bot_index]
+                        return True
+                    else:
+                        print("❌ Invalid selection. Please try again.")
+                except ValueError:
+                    print("❌ Please enter a valid number.")
+                except KeyboardInterrupt:
+                    return False
+
+        except Exception as e:
+            logger.error(f"Error selecting bot: {e}")
+            print("\n❌ Error loading bots.")
+            return False
 
     def display_welcome(self):
         """Display welcome message and personality summary."""
+        if not self.selected_bot:
+            return
+
         print("\n" + "="*60)
-        print("🤖 NARRATIVE DIGITAL TWIN - CHAT INTERFACE")
+        print(f"🤖 CHATTING WITH: {self.selected_bot.name.upper()}")
         print("="*60)
 
+        # Display bot's welcome message
+        print(f"\n{self.selected_bot.welcome_message}")
+
         try:
-            # Get personality summary
-            summary = personality_profiler.get_personality(self.user_id)
-            if summary:
-                print("\n📝 About your digital twin:")
+            # Get personality summary for the selected bot
+            personality_profile = supabase_client.get_personality_profile(str(self.selected_bot.id))
+            if personality_profile:
+                print("\n📝 About this digital twin:")
                 print("-" * 40)
-                print(summary)
+                print(f"Values: {', '.join(personality_profile.values)}")
+                print(f"Communication Style: {personality_profile.tone}")
                 print("-" * 40)
-            else:
-                print("\n⚠️  No personality profile found.")
-                print("Please run the setup script first: python scripts/run_setup.py")
 
         except Exception as e:
             logger.error(f"Error displaying personality summary: {e}")
-            print("\n⚠️  Could not load personality profile.")
 
         print("\n💬 Start chatting! Type 'quit', 'exit', or 'bye' to end the conversation.")
         print("Type 'help' for available commands.")
@@ -77,13 +122,15 @@ class ChatInterface:
 
     def clear_history(self):
         """Clear conversation state (local only)."""
+        if not self.selected_bot:
+            print("\n❌ No bot selected.\n")
+            return
+
         try:
-            if self.user_id in self.engine.conversations:
-                # Reset the conversation state
-                self.engine.reset_conversation(self.user_id)
-                print("\n✅ Conversation state reset.\n")
-            else:
-                print("\n💭 No conversation state to clear.\n")
+            # Reset the conversation state using terminal chat_id
+            chat_id = generate_terminal_chat_id(str(self.selected_bot.id))
+            self.engine.reset_conversation(str(self.selected_bot.id), chat_id=chat_id)
+            print("\n✅ Conversation state reset.\n")
         except Exception as e:
             logger.error(f"Error clearing history: {e}")
             print("\n❌ Error clearing conversation state.\n")
@@ -127,36 +174,55 @@ class ChatInterface:
     def run(self):
         """Run the main chat loop."""
         self.running = True
+
+        # First, select a bot
+        if not self.select_bot():
+            print("\n👋 Goodbye!")
+            return
+
         self.display_welcome()
 
         while self.running:
             try:
                 # Get user input
                 user_input = self.get_user_input()
-                
+
                 if user_input is None:
                     break
-                
+
                 # Check for commands
                 if self.process_command(user_input):
                     if user_input.lower() in ['quit', 'exit', 'bye']:
                         break
                     continue
-                
+
                 # Generate response
+                if not self.selected_bot:
+                    print("\n❌ No bot selected.")
+                    continue
+
                 print("\n🤖 Thinking...")
-                response = self.engine.generate_response(user_input, self.user_id)
-                
+                # Use terminal chat_id for terminal app
+                chat_id = generate_terminal_chat_id(str(self.selected_bot.id))
+                response = self.engine.generate_response(user_input, str(self.selected_bot.id), chat_id=chat_id)
+
                 # Display response
-                print(f"\nDigital Twin: {response}\n")
-                
+                print(f"\n{self.selected_bot.name}: {response.response}")
+
+                # Display follow-up questions if available
+                if response.follow_up_questions:
+                    print("\n💡 You might also ask:")
+                    for i, question in enumerate(response.follow_up_questions, 1):
+                        print(f"   {i}. {question}")
+                print()
+
             except KeyboardInterrupt:
                 print("\n\n👋 Goodbye!")
                 break
             except Exception as e:
                 logger.error(f"Error in chat loop: {e}")
                 print(f"\n❌ Sorry, I encountered an error: {e}\n")
-        
+
         self.running = False
 
 

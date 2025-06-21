@@ -3,6 +3,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
+from uuid import UUID
 from core.models import ConversationMessage, LLMMessage, ConversationState, StoryWithAnalysis
 from core.story_retrieval_manager import StoryRetrievalManager
 
@@ -13,27 +14,32 @@ class ConversationManager:
     Enhanced conversational state management with dynamic context tracking.
 
     Implements a conversation-focused state that serves as the digital twin's
-    short-term memory for a single user session.
+    short-term memory for a single chat session.
     """
 
-    def __init__(self, user_id: str = "default"):
-        """Initialize conversational state for a user."""
-        self.user_id = user_id
+    def __init__(self, chat_id: str, bot_id: str):
+        """Initialize conversational state for a chat."""
+        self.chat_id = chat_id
+        self.bot_id = UUID(bot_id)
         self.story_retrieval_manager = StoryRetrievalManager()
 
         # Load from database or initialize with defaults
         try:
-            state = supabase_client.get_conversation_state(user_id)
+            state = supabase_client.get_conversation_state(chat_id)
             if state:
                 self.summary = state.summary
+                self.call_to_action_shown = state.call_to_action_shown
             else:
                 # Initialize with defaults and create in database
                 self.summary = ""
+                self.call_to_action_shown = False
 
                 # Create initial state in database
                 initial_state = ConversationState(
-                    user_id=user_id,
+                    chat_id=chat_id,
+                    bot_id=self.bot_id,
                     summary=self.summary,
+                    call_to_action_shown=self.call_to_action_shown,
                     created_at=datetime.now(timezone.utc),
                     updated_at=datetime.now(timezone.utc)
                 )
@@ -42,6 +48,7 @@ class ConversationManager:
             logger.error(f"Error loading conversation state from database: {e}")
             # Fall back to defaults
             self.summary = ""
+            self.call_to_action_shown = False
 
     def summarize_conversation(self, user_message: str, llm_response: str) -> str:
         """
@@ -79,7 +86,7 @@ LLM response: {llm_response}"""
             # Persist to database
             try:
                 supabase_client.update_conversation_state(
-                    user_id=self.user_id,
+                    chat_id=self.chat_id,
                     summary=updated_summary
                 )
             except Exception as db_error:
@@ -100,7 +107,8 @@ LLM response: {llm_response}"""
         """
         # Store message
         message = ConversationMessage(
-            user_id=self.user_id,
+            chat_id=self.chat_id,
+            bot_id=self.bot_id,
             role="user",
             content=content,
             created_at=datetime.now(timezone.utc)
@@ -119,7 +127,8 @@ LLM response: {llm_response}"""
             content: The assistant's response content
         """
         message = ConversationMessage(
-            user_id=self.user_id,
+            chat_id=self.chat_id,
+            bot_id=self.bot_id,
             role="assistant",
             content=content,
             created_at=datetime.now(timezone.utc)
@@ -146,7 +155,7 @@ LLM response: {llm_response}"""
         try:
             # Get conversation history from database
             return supabase_client.get_conversation_history_for_llm(
-                user_id=self.user_id,
+                chat_id=self.chat_id,
                 limit=max_messages
             )
 
@@ -179,16 +188,16 @@ LLM response: {llm_response}"""
         
     def reset_conversation(self):
         """
-        Reset the conversation state for a user.
-
-        Args:
-            user_id: User identifier
+        Reset the conversation state for a chat.
 
         Returns:
             True if reset was successful
         """
         try:
-            supabase_client.reset_conversation(self.user_id)
+            supabase_client.reset_conversation(self.chat_id)
+            # Reset local state
+            self.summary = ""
+            self.call_to_action_shown = False
             return True
         except Exception as e:
             logger.error(f"Error resetting conversation: {e}")

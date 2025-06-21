@@ -10,15 +10,81 @@ from uuid import UUID
 import uuid
 
 @dataclass
+class Bot:
+    """Data class representing a bot record from the bots table."""
+
+    id: UUID = field(default_factory=uuid.uuid4)
+    name: str = ""
+    description: Optional[str] = None
+    welcome_message: str = ""
+    call_to_action: str = ""
+    personality_profile_id: Optional[UUID] = None
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Bot':
+        """Create a Bot instance from a dictionary (e.g., from database)."""
+        # Handle UUID conversion
+        bot_id = data.get('id')
+        if isinstance(bot_id, str):
+            bot_id = UUID(bot_id)
+        elif bot_id is None:
+            bot_id = uuid.uuid4()
+
+        # Handle personality profile ID conversion
+        personality_profile_id = data.get('personality_profile_id')
+        if isinstance(personality_profile_id, str):
+            personality_profile_id = UUID(personality_profile_id)
+
+        # Handle datetime conversion
+        created_at = data.get('created_at')
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+
+        updated_at = data.get('updated_at')
+        if isinstance(updated_at, str):
+            updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+
+        return cls(
+            id=bot_id,
+            name=data.get('name', ''),
+            description=data.get('description'),
+            welcome_message=data.get('welcome_message', ''),
+            call_to_action=data.get('call_to_action', ''),
+            personality_profile_id=personality_profile_id,
+            is_active=data.get('is_active', True),
+            created_at=created_at,
+            updated_at=updated_at
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert Bot instance to dictionary for database operations."""
+        return {
+            'id': str(self.id),
+            'name': self.name,
+            'description': self.description,
+            'welcome_message': self.welcome_message,
+            'call_to_action': self.call_to_action,
+            'personality_profile_id': str(self.personality_profile_id) if self.personality_profile_id else None,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+@dataclass
 class Story:
     """Data class representing a story record from the stories table."""
-    
+
     id: UUID = field(default_factory=uuid.uuid4)
+    bot_id: UUID = field(default_factory=uuid.uuid4)
     title: Optional[str] = None
     content: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Story':
         """Create a Story instance from a dictionary (e.g., from database)."""
@@ -28,28 +94,36 @@ class Story:
             story_id = UUID(story_id)
         elif story_id is None:
             story_id = uuid.uuid4()
-        
+
+        bot_id = data.get('bot_id')
+        if isinstance(bot_id, str):
+            bot_id = UUID(bot_id)
+        elif bot_id is None:
+            bot_id = uuid.uuid4()
+
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
             created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-        
+
         updated_at = data.get('updated_at')
         if isinstance(updated_at, str):
             updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
-        
+
         return cls(
             id=story_id,
+            bot_id=bot_id,
             title=data.get('title'),
             content=data.get('content', ''),
             created_at=created_at,
             updated_at=updated_at
         )
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert Story instance to dictionary for database operations."""
         return {
             'id': str(self.id),
+            'bot_id': str(self.bot_id),
             'title': self.title,
             'content': self.content,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -116,8 +190,9 @@ class StoryAnalysis:
 @dataclass
 class PersonalityProfile:
     """Data class representing a personality profile record from the personality_profiles table."""
-    
+
     id: UUID = field(default_factory=uuid.uuid4)
+    bot_id: UUID = field(default_factory=uuid.uuid4)
     values: List[str] = field(default_factory=list)
     formality_vocabulary: str = ""
     tone: str = ""
@@ -127,7 +202,7 @@ class PersonalityProfile:
     storytelling_style: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'PersonalityProfile':
         """Create a PersonalityProfile instance from a dictionary."""
@@ -137,7 +212,13 @@ class PersonalityProfile:
             profile_id = UUID(profile_id)
         elif profile_id is None:
             profile_id = uuid.uuid4()
-        
+
+        bot_id = data.get('bot_id')
+        if isinstance(bot_id, str):
+            bot_id = UUID(bot_id)
+        elif bot_id is None:
+            bot_id = uuid.uuid4()
+
         # Handle profile data conversion
         values = data.get('values', [])
         formality_vocabulary = data.get('formality_vocabulary', '')
@@ -146,19 +227,20 @@ class PersonalityProfile:
         recurring_phrases_metaphors = data.get('recurring_phrases_metaphors', '')
         emotional_expression = data.get('emotional_expression', '')
         storytelling_style = data.get('storytelling_style', '')
-        
-        
+
+
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
             created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-        
+
         updated_at = data.get('updated_at')
         if isinstance(updated_at, str):
             updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
-        
+
         return cls(
             id=profile_id,
+            bot_id=bot_id,
             values=values,
             formality_vocabulary=formality_vocabulary,
             tone=tone,
@@ -169,11 +251,12 @@ class PersonalityProfile:
             created_at=created_at,
             updated_at=updated_at
         )
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert PersonalityProfile instance to dictionary for database operations."""
         return {
             'id': str(self.id),
+            'bot_id': str(self.bot_id),
             'values': self.values,
             'formality_vocabulary': self.formality_vocabulary,
             'tone': self.tone,
@@ -219,11 +302,12 @@ class ConversationMessage:
     """Data class representing a conversation message record from the conversation_history table."""
 
     id: UUID = field(default_factory=uuid.uuid4)
-    user_id: str = "default"
+    chat_id: str = ""
+    bot_id: UUID = field(default_factory=uuid.uuid4)
     role: str = "user"  # 'system', 'user', or 'assistant'
     content: str = ""
     created_at: Optional[datetime] = None
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ConversationMessage':
         """Create a ConversationMessage instance from a dictionary."""
@@ -233,25 +317,33 @@ class ConversationMessage:
             message_id = UUID(message_id)
         elif message_id is None:
             message_id = uuid.uuid4()
-        
+
+        bot_id = data.get('bot_id')
+        if isinstance(bot_id, str):
+            bot_id = UUID(bot_id)
+        elif bot_id is None:
+            bot_id = uuid.uuid4()
+
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
             created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-        
+
         return cls(
             id=message_id,
-            user_id=data.get('user_id', 'default'),
+            chat_id=data.get('chat_id', ''),
+            bot_id=bot_id,
             role=data.get('role', 'user'),
             content=data.get('content', ''),
             created_at=created_at
         )
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert ConversationMessage instance to dictionary for database operations."""
         return {
             'id': str(self.id),
-            'user_id': self.user_id,
+            'chat_id': self.chat_id,
+            'bot_id': str(self.bot_id),
             'role': self.role,
             'content': self.content,
             'created_at': self.created_at.isoformat() if self.created_at else None
@@ -301,8 +393,10 @@ class ConversationState:
     """Data class representing a conversation state record from the conversation_state table."""
 
     id: UUID = field(default_factory=uuid.uuid4)
-    user_id: str = "default"
+    chat_id: str = ""
+    bot_id: UUID = field(default_factory=uuid.uuid4)
     summary: str = ""
+    call_to_action_shown: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -316,6 +410,12 @@ class ConversationState:
         elif state_id is None:
             state_id = uuid.uuid4()
 
+        bot_id = data.get('bot_id')
+        if isinstance(bot_id, str):
+            bot_id = UUID(bot_id)
+        elif bot_id is None:
+            bot_id = uuid.uuid4()
+
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
@@ -327,8 +427,10 @@ class ConversationState:
 
         return cls(
             id=state_id,
-            user_id=data.get('user_id', 'default'),
+            chat_id=data.get('chat_id', ''),
+            bot_id=bot_id,
             summary=data.get('summary', ''),
+            call_to_action_shown=data.get('call_to_action_shown', False),
             created_at=created_at,
             updated_at=updated_at
         )
@@ -337,8 +439,10 @@ class ConversationState:
         """Convert ConversationState instance to dictionary for database operations."""
         return {
             'id': str(self.id),
-            'user_id': self.user_id,
+            'chat_id': self.chat_id,
+            'bot_id': str(self.bot_id),
             'summary': self.summary,
+            'call_to_action_shown': self.call_to_action_shown,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -350,6 +454,7 @@ class StoryWithAnalysis:
 
     # Story fields
     id: UUID = field(default_factory=uuid.uuid4)
+    bot_id: UUID = field(default_factory=uuid.uuid4)
     title: Optional[str] = None
     content: str = ""
     story_created_at: Optional[datetime] = None
@@ -374,6 +479,13 @@ class StoryWithAnalysis:
         elif story_id is None:
             story_id = uuid.uuid4()
 
+        # Handle UUID conversion for bot ID
+        bot_id = data.get('bot_id')
+        if isinstance(bot_id, str):
+            bot_id = UUID(bot_id)
+        elif bot_id is None:
+            bot_id = uuid.uuid4()
+
         # Handle UUID conversion for analysis ID
         analysis_id = data.get('analysis_id')
         if isinstance(analysis_id, str):
@@ -397,6 +509,7 @@ class StoryWithAnalysis:
 
         return cls(
             id=story_id,
+            bot_id=bot_id,
             title=data.get('title'),
             content=data.get('content', ''),
             story_created_at=story_created_at,
@@ -413,6 +526,7 @@ class StoryWithAnalysis:
         """Convert StoryWithAnalysis instance to dictionary for API responses."""
         return {
             'id': str(self.id),
+            'bot_id': str(self.bot_id),
             'title': self.title,
             'content': self.content,
             'story_created_at': self.story_created_at.isoformat() if self.story_created_at else None,
@@ -443,13 +557,49 @@ def stories_with_analysis_from_dict_list(data_list: List[Dict[str, Any]]) -> Lis
     """Convert a list of dictionaries to StoryWithAnalysis instances."""
     return [StoryWithAnalysis.from_dict(data) for data in data_list]
 
+
+def bots_from_dict_list(data_list: List[Dict[str, Any]]) -> List[Bot]:
+    """Convert a list of dictionaries to a list of Bot instances."""
+    return [Bot.from_dict(data) for data in data_list]
+
+
+def generate_chat_id(bot_id: str, user_id: str) -> str:
+    """
+    Generate a chat_id from bot_id and user_id.
+    For Telegram, user_id will be the Telegram chat_id.
+    For terminal app, user_id will be 'default'.
+    """
+    return f"{bot_id}_{user_id}"
+
+
+def parse_chat_id(chat_id: str) -> tuple[str, str]:
+    """
+    Parse a chat_id to extract bot_id and user_id.
+    Returns (bot_id, user_id) where user_id could be a Telegram chat_id or 'default'.
+    """
+    parts = chat_id.split('_', 1)
+    if len(parts) != 2:
+        raise ValueError(f"Invalid chat_id format: {chat_id}. Expected format: bot_id_user_id")
+    return parts[0], parts[1]
+
+
+def generate_telegram_chat_id(bot_id: str, telegram_chat_id: int) -> str:
+    """Generate a chat_id for Telegram using numeric chat_id."""
+    return f"{bot_id}_{telegram_chat_id}"
+
+
+def generate_terminal_chat_id(bot_id: str) -> str:
+    """Generate a chat_id for terminal app using default user."""
+    return f"{bot_id}_default"
+
+
 @dataclass
 class ConversationResponse:
     """Data class representing a conversation response."""
 
     response: str
     follow_up_questions: List[str]
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ConversationResponse':
         """Create a ConversationResponse instance from a dictionary."""

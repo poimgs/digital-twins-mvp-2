@@ -3,16 +3,16 @@ Supabase client for managing all database operations.
 Handles connection and CRUD operations with the Supabase database.
 """
 
-import json
 import logging
 from typing import List, Optional
 from datetime import datetime, timezone
 from supabase import create_client, Client
 from config.settings import settings
 from core.models import (
-    Story, StoryAnalysis, PersonalityProfile, ConversationMessage, LLMMessage, ConversationState,
+    Bot, Story, StoryAnalysis, PersonalityProfile, ConversationMessage, LLMMessage, ConversationState,
     StoryWithAnalysis, stories_from_dict_list, story_analyses_from_dict_list,
-    conversation_messages_from_dict_list, conversation_messages_to_llm_format
+    conversation_messages_from_dict_list, conversation_messages_to_llm_format,
+    bots_from_dict_list
 )
 
 logger = logging.getLogger(__name__)
@@ -27,13 +27,123 @@ class SupabaseClient:
             raise ValueError("Supabase URL and key must be provided in environment variables")
         
         self.client: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-    
-    # Stories table operations
-    def get_stories(self, limit: Optional[int] = None) -> List[Story]:
+
+    # Bot operations
+    def get_bots(self, active_only: bool = True) -> List[Bot]:
         """
-        Retrieve all stories from the database.
+        Retrieve all bots from the database.
 
         Args:
+            active_only: If True, only return active bots
+
+        Returns:
+            List of Bot instances
+        """
+        try:
+            query = self.client.table("bots").select("*")
+            if active_only:
+                query = query.eq("is_active", True)
+
+            result = query.execute()
+            return bots_from_dict_list(result.data)
+        except Exception as e:
+            logger.error(f"Error retrieving bots: {e}")
+            raise
+
+    def get_bot_by_id(self, bot_id: str) -> Optional[Bot]:
+        """
+        Retrieve a bot by its ID.
+
+        Args:
+            bot_id: The bot ID
+
+        Returns:
+            Bot instance or None if not found
+        """
+        try:
+            result = self.client.table("bots").select("*").eq("id", bot_id).execute()
+            if result.data:
+                return Bot.from_dict(result.data[0])
+            return None
+        except Exception as e:
+            logger.error(f"Error retrieving bot by ID: {e}")
+            raise
+
+    def get_bot_by_name(self, name: str) -> Optional[Bot]:
+        """
+        Retrieve a bot by its name.
+
+        Args:
+            name: The bot name
+
+        Returns:
+            Bot instance or None if not found
+        """
+        try:
+            result = self.client.table("bots").select("*").eq("name", name).execute()
+            if result.data:
+                return Bot.from_dict(result.data[0])
+            return None
+        except Exception as e:
+            logger.error(f"Error retrieving bot by name: {e}")
+            raise
+
+    def insert_bot(self, bot: Bot) -> Bot:
+        """
+        Insert a new bot.
+
+        Args:
+            bot: Bot instance to insert
+
+        Returns:
+            The inserted Bot instance
+        """
+        try:
+            bot_dict = bot.to_dict()
+            # Remove None values for insert
+            bot_dict = {k: v for k, v in bot_dict.items() if v is not None}
+
+            result = self.client.table("bots").insert(bot_dict).execute()
+            if result.data:
+                return Bot.from_dict(result.data[0])
+            else:
+                return bot
+        except Exception as e:
+            logger.error(f"Error inserting bot: {e}")
+            raise
+
+    def update_bot(self, bot: Bot) -> Bot:
+        """
+        Update an existing bot.
+
+        Args:
+            bot: Bot instance to update
+
+        Returns:
+            The updated Bot instance
+        """
+        try:
+            bot_dict = bot.to_dict()
+            bot_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+            # Remove None values for update
+            bot_dict = {k: v for k, v in bot_dict.items() if v is not None}
+
+            result = self.client.table("bots").update(bot_dict).eq("id", str(bot.id)).execute()
+            if result.data:
+                return Bot.from_dict(result.data[0])
+            else:
+                return bot
+        except Exception as e:
+            logger.error(f"Error updating bot: {e}")
+            raise
+
+    # Stories table operations
+    def get_stories(self, bot_id: Optional[str] = None, limit: Optional[int] = None) -> List[Story]:
+        """
+        Retrieve stories from the database.
+
+        Args:
+            bot_id: Optional bot ID to filter stories
             limit: Optional limit on number of stories to retrieve
 
         Returns:
@@ -41,6 +151,8 @@ class SupabaseClient:
         """
         try:
             query = self.client.table("stories").select("*")
+            if bot_id:
+                query = query.eq("bot_id", bot_id)
             if limit:
                 query = query.limit(limit)
 
@@ -48,6 +160,30 @@ class SupabaseClient:
             return stories_from_dict_list(result.data)
         except Exception as e:
             logger.error(f"Error retrieving stories: {e}")
+            raise
+
+    def insert_story(self, story: Story) -> Story:
+        """
+        Insert a new story.
+
+        Args:
+            story: Story instance to insert
+
+        Returns:
+            The inserted Story instance
+        """
+        try:
+            story_dict = story.to_dict()
+            # Remove None values for insert
+            story_dict = {k: v for k, v in story_dict.items() if v is not None}
+
+            result = self.client.table("stories").insert(story_dict).execute()
+            if result.data:
+                return Story.from_dict(result.data[0])
+            else:
+                return story
+        except Exception as e:
+            logger.error(f"Error inserting story: {e}")
             raise
     
     # Story analysis table operations
@@ -89,9 +225,12 @@ class SupabaseClient:
             logger.error(f"Error retrieving story analyses: {e}")
             raise
 
-    def get_stories_with_analysis(self) -> List[StoryWithAnalysis]:
+    def get_stories_with_analysis(self, bot_id: Optional[str] = None) -> List[StoryWithAnalysis]:
         """
         Retrieve stories with their analysis data.
+
+        Args:
+            bot_id: Optional bot ID to filter stories
 
         Returns:
             List of StoryWithAnalysis instances
@@ -100,6 +239,7 @@ class SupabaseClient:
             # Build the JOIN query to get stories with their analysis
             query = self.client.table("stories").select("""
                 id,
+                bot_id,
                 title,
                 content,
                 created_at,
@@ -114,6 +254,9 @@ class SupabaseClient:
                 )
             """)
 
+            if bot_id:
+                query = query.eq("bot_id", bot_id)
+
             result = query.execute()
 
             # Transform the nested result into StoryWithAnalysis objects
@@ -122,6 +265,7 @@ class SupabaseClient:
                 # Extract story data
                 story_data = {
                     'id': row['id'],
+                    'bot_id': row['bot_id'],
                     'title': row['title'],
                     'content': row['content'],
                     'story_created_at': row['created_at'],
@@ -174,18 +318,18 @@ class SupabaseClient:
             logger.error(f"Error inserting personality profile: {e}")
             raise
 
-    def get_personality_profile(self, user_id: str = "default") -> Optional[PersonalityProfile]:
+    def get_personality_profile(self, bot_id: str) -> Optional[PersonalityProfile]:
         """
-        Retrieve personality profile for a user.
+        Retrieve personality profile for a bot.
 
         Args:
-            user_id: The user ID (defaults to "default" for MVP)
+            bot_id: The bot ID
 
         Returns:
             The PersonalityProfile instance or None if not found
         """
         try:
-            result = self.client.table("personality_profiles").select("*").eq("user_id", user_id).execute()
+            result = self.client.table("personality_profiles").select("*").eq("bot_id", bot_id).execute()
             if result.data:
                 return PersonalityProfile.from_dict(result.data[0])
             return None
@@ -220,14 +364,14 @@ class SupabaseClient:
 
     def get_conversation_history(
         self,
-        user_id: str = "default",
+        chat_id: str,
         limit: int = 50
     ) -> List[ConversationMessage]:
         """
-        Retrieve conversation history for a user.
+        Retrieve conversation history for a chat.
 
         Args:
-            user_id: The user ID
+            chat_id: The chat ID (format: bot_id_user_id)
             limit: Maximum number of messages to retrieve
 
         Returns:
@@ -237,7 +381,7 @@ class SupabaseClient:
             result = (
                 self.client.table("conversation_history")
                 .select("*")
-                .eq("user_id", user_id)
+                .eq("chat_id", chat_id)
                 .order("created_at", desc=True)
                 .limit(limit)
                 .execute()
@@ -250,14 +394,14 @@ class SupabaseClient:
 
     def get_conversation_history_for_llm(
         self,
-        user_id: str = "default",
+        chat_id: str,
         limit: int = 10
     ) -> List[LLMMessage]:
         """
         Retrieve conversation history formatted for LLM service.
 
         Args:
-            user_id: The user ID
+            chat_id: The chat ID (format: bot_id_user_id)
             limit: Maximum number of messages to retrieve
 
         Returns:
@@ -267,7 +411,7 @@ class SupabaseClient:
             query = (
                 self.client.table("conversation_history")
                 .select("*")
-                .eq("user_id", user_id)
+                .eq("chat_id", chat_id)
                 .order("created_at", desc=True)
                 .limit(limit)
             )
@@ -282,12 +426,12 @@ class SupabaseClient:
             raise
 
     # Conversation state operations
-    def get_conversation_state(self, user_id: str = "default") -> Optional[ConversationState]:
+    def get_conversation_state(self, chat_id: str) -> Optional[ConversationState]:
         """
-        Retrieve conversation state for a user.
+        Retrieve conversation state for a chat.
 
         Args:
-            user_id: The user ID
+            chat_id: The chat ID (format: bot_id_user_id)
 
         Returns:
             ConversationState instance or None if not found
@@ -296,7 +440,7 @@ class SupabaseClient:
             result = (
                 self.client.table("conversation_state")
                 .select("*")
-                .eq("user_id", user_id)
+                .eq("chat_id", chat_id)
                 .execute()
             )
 
@@ -333,15 +477,17 @@ class SupabaseClient:
 
     def update_conversation_state(
         self,
-        user_id: str,
-        summary: Optional[str] = None
+        chat_id: str,
+        summary: Optional[str] = None,
+        call_to_action_shown: Optional[bool] = None
     ) -> Optional[ConversationState]:
         """
         Update specific fields of conversation state.
 
         Args:
-            user_id: The user ID
+            chat_id: The chat ID (format: bot_id_user_id)
             summary: Updated summary text
+            call_to_action_shown: Whether call to action has been shown
 
         Returns:
             The updated ConversationState instance or None if not found
@@ -352,11 +498,13 @@ class SupabaseClient:
 
             if summary is not None:
                 update_data["summary"] = summary
+            if call_to_action_shown is not None:
+                update_data["call_to_action_shown"] = str(call_to_action_shown).lower()
 
             result = (
                 self.client.table("conversation_state")
                 .update(update_data)
-                .eq("user_id", user_id)
+                .eq("chat_id", chat_id)
                 .execute()
             )
 
@@ -366,23 +514,23 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Error updating conversation state: {e}")
             raise
-        
-    def reset_conversation(self, user_id: str = "default") -> bool:
+
+    def reset_conversation(self, chat_id: str) -> bool:
         """
-        Reset the conversation state for a user.
+        Reset the conversation state for a chat.
 
         Args:
-            user_id: User identifier
+            chat_id: Chat identifier (format: bot_id_user_id)
 
         Returns:
             True if reset was successful
         """
         try:
             # Delete conversation state
-            self.client.table("conversation_state").delete().eq("user_id", user_id).execute()
+            self.client.table("conversation_state").delete().eq("chat_id", chat_id).execute()
 
             # Delete conversation history
-            self.client.table("conversation_history").delete().eq("user_id", user_id).execute()
+            self.client.table("conversation_history").delete().eq("chat_id", chat_id).execute()
 
             return True
         except Exception as e:
