@@ -45,3 +45,17 @@ CREATE TABLE IF NOT EXISTS conversation_history (
     content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Conversation state table - stores conversation summary and context
+CREATE TABLE IF NOT EXISTS conversation_state (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id VARCHAR(100) DEFAULT 'default',
+    summary TEXT DEFAULT '',
+    triggers TEXT[],
+    emotions TEXT[],
+    thoughts TEXT[],
+    values TEXT[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id)
+);

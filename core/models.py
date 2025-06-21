@@ -300,6 +300,66 @@ def dict_list_to_llm_messages(data_list: List[Dict[str, str]]) -> List[LLMMessag
 
 
 @dataclass
+class ConversationState:
+    """Data class representing a conversation state record from the conversation_state table."""
+
+    id: UUID = field(default_factory=uuid.uuid4)
+    user_id: str = "default"
+    summary: str = ""
+    triggers: List[str] = field(default_factory=list)
+    emotions: List[str] = field(default_factory=list)
+    thoughts: List[str] = field(default_factory=list)
+    values: List[str] = field(default_factory=list)
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ConversationState':
+        """Create a ConversationState instance from a dictionary."""
+        # Handle UUID conversion
+        state_id = data.get('id')
+        if isinstance(state_id, str):
+            state_id = UUID(state_id)
+        elif state_id is None:
+            state_id = uuid.uuid4()
+
+        # Handle datetime conversion
+        created_at = data.get('created_at')
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+
+        updated_at = data.get('updated_at')
+        if isinstance(updated_at, str):
+            updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+
+        return cls(
+            id=state_id,
+            user_id=data.get('user_id', 'default'),
+            summary=data.get('summary', ''),
+            triggers=data.get('triggers', []),
+            emotions=data.get('emotions', []),
+            thoughts=data.get('thoughts', []),
+            values=data.get('values', []),
+            created_at=created_at,
+            updated_at=updated_at
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert ConversationState instance to dictionary for database operations."""
+        return {
+            'id': str(self.id),
+            'user_id': self.user_id,
+            'summary': self.summary,
+            'triggers': self.triggers,
+            'emotions': self.emotions,
+            'thoughts': self.thoughts,
+            'values': self.values,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+@dataclass
 class UserInputAnalysis:
     """Data class for user input analysis results."""
 

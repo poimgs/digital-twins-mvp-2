@@ -3,12 +3,14 @@ Supabase client for managing all database operations.
 Handles connection and CRUD operations with the Supabase database.
 """
 
+import json
 import logging
 from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
 from supabase import create_client, Client
 from config.settings import settings
 from core.models import (
-    Story, StoryAnalysis, PersonalityProfile, ConversationMessage, LLMMessage,
+    Story, StoryAnalysis, PersonalityProfile, ConversationMessage, LLMMessage, ConversationState,
     stories_from_dict_list, story_analyses_from_dict_list,
     conversation_messages_from_dict_list, conversation_messages_to_llm_format,
     llm_messages_to_dict_list
@@ -218,6 +220,108 @@ class SupabaseClient:
             return conversation_messages_to_llm_format(messages)
         except Exception as e:
             logger.error(f"Error retrieving conversation history for LLM: {e}")
+            raise
+
+    # Conversation state operations
+    def get_conversation_state(self, user_id: str = "default") -> Optional[ConversationState]:
+        """
+        Retrieve conversation state for a user.
+
+        Args:
+            user_id: The user ID
+
+        Returns:
+            ConversationState instance or None if not found
+        """
+        try:
+            result = (
+                self.client.table("conversation_state")
+                .select("*")
+                .eq("user_id", user_id)
+                .execute()
+            )
+
+            if result.data:
+                return ConversationState.from_dict(result.data[0])
+            return None
+        except Exception as e:
+            logger.error(f"Error retrieving conversation state: {e}")
+            raise
+
+    def insert_conversation_state(self, state: ConversationState) -> ConversationState:
+        """
+        Insert or update conversation state.
+
+        Args:
+            state: ConversationState instance to insert/update
+
+        Returns:
+            The inserted/updated ConversationState instance
+        """
+        try:
+            state_dict = state.to_dict()
+            # Remove None values for insert
+            state_dict = {k: v for k, v in state_dict.items() if v is not None}
+
+            result = self.client.table("conversation_state").upsert(state_dict).execute()
+            if result.data:
+                return ConversationState.from_dict(result.data[0])
+            else:
+                return state
+        except Exception as e:
+            logger.error(f"Error inserting conversation state: {e}")
+            raise
+
+    def update_conversation_state(
+        self,
+        user_id: str,
+        summary: Optional[str] = None,
+        triggers: Optional[List[str]] = None,
+        emotions: Optional[List[str]] = None,
+        thoughts: Optional[List[str]] = None,
+        values: Optional[List[str]] = None
+    ) -> Optional[ConversationState]:
+        """
+        Update specific fields of conversation state.
+
+        Args:
+            user_id: The user ID
+            summary: Updated summary text
+            triggers: Updated triggers list
+            emotions: Updated emotions list
+            thoughts: Updated thoughts list
+            values: Updated values list
+
+        Returns:
+            The updated ConversationState instance or None if not found
+        """
+        try:
+            # Build update dictionary with only provided fields
+            update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+
+            if summary is not None:
+                update_data["summary"] = summary
+            if triggers is not None:
+                update_data["triggers"] = json.dumps(triggers)
+            if emotions is not None:
+                update_data["emotions"] = json.dumps(emotions)
+            if thoughts is not None:
+                update_data["thoughts"] = json.dumps(thoughts)
+            if values is not None:
+                update_data["values"] = json.dumps(values)
+
+            result = (
+                self.client.table("conversation_state")
+                .update(update_data)
+                .eq("user_id", user_id)
+                .execute()
+            )
+
+            if result.data:
+                return ConversationState.from_dict(result.data[0])
+            return None
+        except Exception as e:
+            logger.error(f"Error updating conversation state: {e}")
             raise
 
 # Global Supabase client instance
