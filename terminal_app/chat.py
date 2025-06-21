@@ -32,22 +32,22 @@ logger = logging.getLogger(__name__)
 
 class ChatInterface:
     """Command-line chat interface for the digital twin."""
-    
+
     def __init__(self, user_id: str = "default"):
         """Initialize the chat interface."""
         self.user_id = user_id
         self.engine = conversational_engine
         self.running = False
-    
+
     def display_welcome(self):
         """Display welcome message and personality summary."""
         print("\n" + "="*60)
         print("🤖 NARRATIVE DIGITAL TWIN - CHAT INTERFACE")
         print("="*60)
-        
+
         try:
             # Get personality summary
-            summary = personality_profiler.generate_personality_summary(self.user_id)
+            summary = personality_profiler.get_personality(self.user_id)
             if summary:
                 print("\n📝 About your digital twin:")
                 print("-" * 40)
@@ -56,15 +56,15 @@ class ChatInterface:
             else:
                 print("\n⚠️  No personality profile found.")
                 print("Please run the setup script first: python scripts/run_setup.py")
-                
+
         except Exception as e:
             logger.error(f"Error displaying personality summary: {e}")
             print("\n⚠️  Could not load personality profile.")
-        
+
         print("\n💬 Start chatting! Type 'quit', 'exit', or 'bye' to end the conversation.")
         print("Type 'help' for available commands.")
         print("="*60 + "\n")
-    
+
     def display_help(self):
         """Display help information."""
         print("\n" + "="*40)
@@ -72,29 +72,12 @@ class ChatInterface:
         print("="*40)
         print("help     - Show this help message")
         print("clear    - Clear conversation history")
-        print("profile  - Show personality profile summary")
         print("stats    - Show conversation statistics")
         print("quit     - Exit the chat")
         print("exit     - Exit the chat")
         print("bye      - Exit the chat")
         print("="*40 + "\n")
-    
-    def display_profile(self):
-        """Display current personality profile."""
-        try:
-            summary = personality_profiler.generate_personality_summary(self.user_id)
-            if summary:
-                print("\n" + "="*50)
-                print("PERSONALITY PROFILE:")
-                print("="*50)
-                print(summary)
-                print("="*50 + "\n")
-            else:
-                print("\n⚠️  No personality profile available.\n")
-        except Exception as e:
-            logger.error(f"Error displaying profile: {e}")
-            print("\n❌ Error loading personality profile.\n")
-    
+
     def display_stats(self):
         """Display conversation statistics."""
         try:
@@ -113,7 +96,7 @@ class ChatInterface:
         except Exception as e:
             logger.error(f"Error displaying stats: {e}")
             print("\n❌ Error loading conversation statistics.\n")
-    
+
     def clear_history(self):
         """Clear conversation state (local only)."""
         try:
@@ -126,7 +109,7 @@ class ChatInterface:
         except Exception as e:
             logger.error(f"Error clearing history: {e}")
             print("\n❌ Error clearing conversation state.\n")
-    
+
     def process_command(self, user_input: str) -> bool:
         """
         Process special commands.
@@ -138,7 +121,7 @@ class ChatInterface:
             True if it was a command, False if it's a regular message
         """
         command = user_input.lower().strip()
-        
+
         if command in ['quit', 'exit', 'bye']:
             print("\n👋 Goodbye! Thanks for chatting with your digital twin.")
             return True
@@ -148,15 +131,12 @@ class ChatInterface:
         elif command == 'clear':
             self.clear_history()
             return True
-        elif command == 'profile':
-            self.display_profile()
-            return True
         elif command == 'stats':
             self.display_stats()
             return True
-        
+
         return False
-    
+
     def get_user_input(self) -> Optional[str]:
         """Get user input with proper handling."""
         try:
@@ -168,12 +148,12 @@ class ChatInterface:
         except EOFError:
             print("\n\n👋 Goodbye!")
             return None
-    
+
     def run(self):
         """Run the main chat loop."""
         self.running = True
         self.display_welcome()
-        
+
         while self.running:
             try:
                 # Get user input

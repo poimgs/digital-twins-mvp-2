@@ -164,43 +164,6 @@ class PersonalityProfiler:
         except Exception as e:
             logger.error(f"Error extracting personality traits: {e}")
             raise
-    
-    def generate_personality_summary(self, user_id: str = "default") -> str:
-        """
-        Generate a natural language summary of the personality profile.
-        
-        Args:
-            user_id: User identifier
-        
-        Returns:
-            Natural language personality summary
-        """
-        try:
-            personality = self.get_personality(user_id)
-            
-            if not personality:
-                return ""
-            
-            system_prompt = """You are an expert at creating natural, engaging personality summaries. 
-            Create a flowing narrative that captures the essence of this person's personality."""
-            
-            user_prompt = f"""Based on the following personality traits, write a natural, engaging summary 
-            that captures who this person is, how they think, feel, and interact with the world:
-            
-            {json.dumps(personality, indent=2)}
-            
-            Write in a warm, insightful tone that feels like it's describing a real person you know well."""
-            
-            summary = llm_service.generate_completion(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt
-            )
-            
-            return summary
-            
-        except Exception as e:
-            logger.error(f"Error generating personality summary: {e}")
-            raise
 
 # Global personality profiler instance
 personality_profiler = PersonalityProfiler()
