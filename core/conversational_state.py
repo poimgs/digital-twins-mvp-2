@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
 from core.utils import load_prompts
-from core.models import PersonalityProfile, ConversationMessage, UserInputAnalysis
+from core.models import PersonalityProfile, ConversationMessage, UserInputAnalysis, LLMMessage
 
 logger = logging.getLogger(__name__)
 
@@ -20,93 +20,77 @@ class ConversationalState:
     def __init__(self, user_id: str = "default"):
         """Initialize conversational state for a user."""
         self.user_id = user_id
-        self.state = self._create_initial_state()
-        self.personality_profile: Optional[PersonalityProfile] = None
-        # Load schema from prompts.json instead of defining it locally
+        self.state = self._initialize_state()
+        self.summary = self.load_summary()
         prompts = load_prompts()
         self.user_input_analysis_schema = prompts["schemas"]["user_input_analysis_schema"]
-        self.load_state()
 
-    def _create_initial_state(self) -> Dict[str, Any]:
-        """Create the initial conversation-focused state structure."""
+    def _initialize_state(self) -> Dict[str, Any]:
+        """Initialize the conversation state structure."""
         return {
             "session_id": str(uuid.uuid4()),
-            "last_updated_timestamp": datetime.now(timezone.utc).isoformat(),
             "turn_count": 0,
             "current_topics": [],
             "user_intent_history": [],
-            "retrieved_story_history": [],
             "mentioned_concepts": {},
+            "retrieved_story_history": [],
             "conversation_flow": {
                 "dominant_theme": None,
                 "theme_stability_count": 0,
                 "last_topic_shift_turn": 0
             },
             "context_decay": {
-                "topic_decay_threshold": 3,
-                "concept_decay_threshold": 5,
+                "concept_decay_threshold": 10,
                 "story_repetition_penalty_base": 2.0
-            }
+            },
+            "last_updated_timestamp": datetime.now(timezone.utc).isoformat()
         }
 
-
-
-    def load_state(self):
-        """Load existing conversation state and personality profile."""
-        try:
-            # Load personality profile (now returns PersonalityProfile object)
-            self.personality_profile = supabase_client.get_personality_profile(self.user_id)
-
-            logger.info(f"Loaded conversational state for user {self.user_id}")
-
-        except Exception as e:
-            logger.error(f"Error loading conversational state: {e}")
-            # Continue with empty state
-
-    def update_timestamp(self):
-        """Update the last updated timestamp."""
-        self.state["last_updated_timestamp"] = datetime.now(timezone.utc).isoformat()
+    def load_summary(self) -> str:
+        """Load conversation summary from previous sessions."""
+        # For now, return empty summary. In future, this could load from database
+        return ""
 
     def increment_turn(self):
-        """Increment the turn counter and update timestamp."""
+        """Increment the conversation turn counter."""
         self.state["turn_count"] += 1
-        self.update_timestamp()
+        self.state["last_updated_timestamp"] = datetime.now(timezone.utc).isoformat()
 
     def analyze_user_input(self, user_message: str) -> UserInputAnalysis:
         """
-        Analyze user input to extract topics, concepts, and intent.
+        Update conversation summary based on user input and previous context.
 
         Args:
             user_message: The user's message
 
         Returns:
-            UserInputAnalysis instance containing analysis results
+            UserInputAnalysis instance containing updated summary
         """
         try:
-            system_prompt = """You are an expert conversation analyst. Analyze the user's message to extract:
-            1. Main topics/themes (2-4 words each)
-            2. Key concepts mentioned
-            3. User intent (what they're trying to accomplish)
+            system_prompt = """You are an expert conversation summarizer. Given the previous conversation summary and new user message, update the summary to include:
+            1. Updated main topics/themes based on recent context
+            2. Key concepts that remain relevant
+            3. Evolution of user's intentions throughout conversation
 
-            Respond with structured JSON containing topics, concepts, and intent."""
+            Consider conversation history and maintain contextual relevance."""
 
-            user_prompt = f"""Analyze this message:
+            user_prompt = f"""Previous summary: {self.summary}
 
-            "{user_message}"
+            New message: "{user_message}"
 
-            Extract:
-            - topics: List of 1-3 main topics (2-4 words each)
-            - concepts: List of key concepts, names, or ideas mentioned
-            - intent: Single phrase describing what the user wants (choose from: request_story, ask_opinion, seek_advice, ask_clarification_question, share_experience, general_conversation, express_emotion, ask_question)"""
+            Update the summary focusing on:
+            - topics: List of 1-3 most relevant topics considering conversation history
+            - concepts: Key concepts that remain important to the conversation
+            - intent: User's current intention in context of conversation flow (choose from: request_story, ask_opinion, seek_advice, ask_clarification_question, share_experience, general_conversation, express_emotion, ask_question)"""
 
-            # Use structured response with user input analysis schema
-            analysis = llm_service.generate_structured_response(
+            # Generate updated summary using schema
+            updated_summary = llm_service.generate_structured_response(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 schema=self.user_input_analysis_schema
             )
 
-            return UserInputAnalysis.from_dict(analysis)
+            return UserInputAnalysis.from_dict(updated_summary)
 
         except Exception as e:
             logger.error(f"Error analyzing user input: {e}")
@@ -202,8 +186,6 @@ class ConversationalState:
         for concept in concepts_to_remove:
             del self.state["mentioned_concepts"][concept]
 
-        # Topic decay is handled by the conversation flow logic
-
     def calculate_story_repetition_penalty(self, story_id: str) -> float:
         """
         Calculate repetition penalty for a story based on when it was last told.
@@ -289,13 +271,12 @@ class ConversationalState:
 
         return False
 
-    def add_user_message(self, content: str, metadata: Optional[Dict[str, Any]] = None):
+    def add_user_message(self, content: str):
         """
         Add a user message and update conversational state.
 
         Args:
             content: The user's message content
-            metadata: Optional metadata for the message
         """
         # Increment turn counter
         self.increment_turn()
@@ -306,16 +287,11 @@ class ConversationalState:
         # Update state with analysis
         self.update_state_with_analysis(analysis)
 
-        # Store message (optional - for persistence)
+        # Store message
         message = ConversationMessage(
             user_id=self.user_id,
             role="user",
             content=content,
-            metadata={
-                **(metadata or {}),
-                "analysis": analysis.to_dict(),
-                "turn_count": self.state["turn_count"]
-            },
             created_at=datetime.now(timezone.utc)
         )
 
@@ -324,14 +300,13 @@ class ConversationalState:
         except Exception as e:
             logger.error(f"Error storing user message: {e}")
 
-    def add_assistant_message(self, content: str, used_stories: List[str] = None, metadata: Optional[Dict[str, Any]] = None):
+    def add_assistant_message(self, content: str, used_stories: Optional[List[str]] = None):
         """
         Add an assistant message and update story usage tracking.
 
         Args:
             content: The assistant's response content
             used_stories: List of story IDs that were used in the response
-            metadata: Optional metadata for the message
         """
         # Record story usage
         if used_stories:
@@ -343,12 +318,6 @@ class ConversationalState:
             user_id=self.user_id,
             role="assistant",
             content=content,
-            metadata={
-                **(metadata or {}),
-                "used_stories": used_stories or [],
-                "turn_count": self.state["turn_count"],
-                "conversation_context": self.get_conversation_context()
-            },
             created_at=datetime.now(timezone.utc)
         )
 
@@ -369,3 +338,27 @@ class ConversationalState:
             "key_concepts_count": len(self.state["mentioned_concepts"]),
             "last_updated": self.state["last_updated_timestamp"]
         }
+
+    def get_conversation_history_for_llm(
+        self,
+        max_messages: int = 10
+    ) -> List[LLMMessage]:
+        """
+        Get conversation history formatted for LLM service with truncation.
+
+        Args:
+            max_messages: Maximum number of messages to retrieve
+
+        Returns:
+            List of message dictionaries in LLM format
+        """
+        try:
+            # Get conversation history from database
+            return supabase_client.get_conversation_history_for_llm(
+                user_id=self.user_id,
+                limit=max_messages
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting conversation history for LLM: {e}")
+            return []

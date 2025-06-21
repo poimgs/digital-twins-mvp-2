@@ -12,6 +12,7 @@ from core.llm_service import llm_service
 from core.supabase_client import supabase_client
 from core.utils import load_prompts
 from core.conversational_state import ConversationalState
+from core.models import PersonalityProfile
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +23,29 @@ class ConversationalEngine:
     Implements conversation-focused state tracking, intelligent story repetition
     handling, and contextual awareness for natural dialogue flow.
     """
+    personality_summary: str = ""
 
     def __init__(self):
         """Initialize the conversational engine."""
         self.prompts = load_prompts()
         self.states: Dict[str, ConversationalState] = {}
+        
+        personality_profile = supabase_client.get_personality_profile()
+        # Create a more structured and readable personality summary for the digital twin
+        self.personality_summary = f"""
+PERSONALITY PROFILE:
+
+VALUES & MOTIVATIONS:
+- Values: { ', '.join(personality_profile.values) if personality_profile else 'Not specified'}
+
+COMMUNICATION STYLE & VOICE:
+- Formality & Vocabulary: {personality_profile.formality_vocabulary if personality_profile else 'Not specified'}
+- Tone: {personality_profile.tone if personality_profile else 'Not specified'}
+- Sentence Structure: {personality_profile.sentence_structure if personality_profile else 'Not specified'}
+- Recurring Phrases/Metaphors: {personality_profile.recurring_phrases_metaphors if personality_profile else 'Not specified'}
+- Emotional Expression: {personality_profile.emotional_expression if personality_profile else 'Not specified'}
+- Storytelling Style: {personality_profile.storytelling_style if personality_profile else 'Not specified'}
+"""
 
     def get_or_create_state(self, user_id: str = "default") -> ConversationalState:
         """Get or create conversational state for a user."""
@@ -602,7 +621,7 @@ class ConversationalEngine:
 
     def generate_response(self, user_message: str, user_id: str = "default") -> Dict[str, Any]:
         """
-        Generate a response to a user message using enhanced state management.
+        Generate a response to a user message
 
         Args:
             user_message: The user's message
@@ -624,40 +643,6 @@ class ConversationalEngine:
             # Prepare enhanced context for response generation
             conversation_context = state.get_conversation_context()
 
-            personality_summary = ""
-            if state.personality_profile:
-                # Create a more structured and readable personality summary for the digital twin
-                profile = state.personality_profile.profile
-                core_values = profile.get("core_values_motivations", {})
-                communication = profile.get("communication_style_voice", {})
-                cognitive = profile.get("cognitive_style_worldview", {})
-
-                personality_summary = f"""
-PERSONALITY PROFILE:
-
-CORE VALUES & MOTIVATIONS:
-- Core Values: {core_values.get('core_values', 'Not specified')}
-- Anti-Values: {core_values.get('anti_values', 'Not specified')}
-- Motivational Drivers: {core_values.get('motivational_drivers', 'Not specified')}
-- Value Conflicts: {core_values.get('value_conflicts', 'Not specified')}
-
-COMMUNICATION STYLE & VOICE:
-- Formality & Vocabulary: {communication.get('formality_vocabulary', 'Not specified')}
-- Tone: {communication.get('tone', 'Not specified')}
-- Sentence Structure: {communication.get('sentence_structure', 'Not specified')}
-- Recurring Phrases/Metaphors: {communication.get('recurring_phrases_metaphors', 'Not specified')}
-- Emotional Expression: {communication.get('emotional_expression', 'Not specified')}
-- Storytelling Style: {communication.get('storytelling_style', 'Not specified')}
-
-COGNITIVE STYLE & WORLDVIEW:
-- Thinking Process: {cognitive.get('thinking_process', 'Not specified')}
-- Outlook: {cognitive.get('outlook', 'Not specified')}
-- Focus: {cognitive.get('focus', 'Not specified')}
-- Learning Style: {cognitive.get('learning_style', 'Not specified')}
-- Decision Making: {cognitive.get('decision_making', 'Not specified')}
-- Stress Response: {cognitive.get('stress_response', 'Not specified')}
-"""
-
             stories_context = ""
             used_story_ids = []
             if relevant_stories:
@@ -665,7 +650,7 @@ COGNITIVE STYLE & WORLDVIEW:
                     f"Story (relevance: {story['relevance_score']:.1f}): {story.get('content', story.get('text', ''))[:500]}..."
                     for story in relevant_stories
                 ])
-                used_story_ids = [s.get("id") for s in relevant_stories]
+                used_story_ids = [str(s.get("id")) for s in relevant_stories if s.get("id") is not None]
 
             # Enhanced context information
             context_info = f"""
@@ -678,19 +663,38 @@ COGNITIVE STYLE & WORLDVIEW:
             - Conversation Stage: {conversation_context['conversation_maturity']}
             """
 
-            # Generate response with enhanced context
-            system_prompt = self.prompts["conversation"]["system_prompt"]
-            user_prompt = self.prompts["conversation"]["response_prompt"].format(
-                personality=personality_summary,
-                relevant_stories=stories_context,
-                conversation_history=context_info,
-                user_message=user_message
-            )
+            # Get conversation history for better context
+            conversation_history = state.get_conversation_history_for_llm(max_messages=10)
 
-            response = llm_service.generate_completion(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt
-            )
+            # If we have conversation history, use it for better context
+            if conversation_history:
+                # Build messages for conversation completion using LLMMessage objects
+                messages = llm_service.build_llm_messages(
+                    system_prompt=self.prompts["conversation"]["system_prompt"],
+                    conversation_history=conversation_history[:-1],  # Exclude the last user message
+                    user_message=self.prompts["conversation"]["response_prompt"].format(
+                        personality=self.personality_summary,
+                        relevant_stories=stories_context,
+                        conversation_history=context_info,
+                        user_message=user_message
+                    )
+                )
+
+                response = llm_service.generate_completion_from_llm_messages(messages)
+            else:
+                # Fallback to original method if no history
+                system_prompt = self.prompts["conversation"]["system_prompt"]
+                user_prompt = self.prompts["conversation"]["response_prompt"].format(
+                    personality=self.personality_summary,
+                    relevant_stories=stories_context,
+                    conversation_history=context_info,
+                    user_message=user_message
+                )
+
+                response = llm_service.generate_completion(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt
+                )
 
             # Record assistant response and story usage
             state.add_assistant_message(

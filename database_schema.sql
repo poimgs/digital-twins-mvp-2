@@ -4,7 +4,6 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Stories table - stores raw story content
 CREATE TABLE IF NOT EXISTS stories (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    filename VARCHAR(255),
     title VARCHAR(500),
     content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -38,20 +37,11 @@ CREATE TABLE IF NOT EXISTS personality_profiles (
     UNIQUE(user_id)
 );
 
-
--- Add indexes for better query performance on personality profiles
-CREATE INDEX IF NOT EXISTS idx_personality_profiles_user_id ON personality_profiles(user_id);
-CREATE INDEX IF NOT EXISTS idx_personality_profiles_version ON personality_profiles(profile_version);
-
--- Add GIN index for JSONB profile field to enable efficient queries on personality data
-CREATE INDEX IF NOT EXISTS idx_personality_profiles_profile_gin ON personality_profiles USING GIN (profile);
-
 -- Conversation history table - stores chat messages
 CREATE TABLE IF NOT EXISTS conversation_history (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id VARCHAR(100) DEFAULT 'default',
     role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant')),
     content TEXT NOT NULL,
-    metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

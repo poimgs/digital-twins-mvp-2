@@ -8,6 +8,8 @@ import logging
 from typing import Dict, List, Optional, Any
 from openai import OpenAI
 from config.settings import settings
+from core.models import ConversationMessage, LLMMessage, llm_messages_to_dict_list
+    
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +145,111 @@ class LLMService:
             logger.error(f"Response content: {response}")
             raise ValueError(f"Invalid JSON response: {e}")
 
+    def generate_completion_from_llm_messages(
+        self,
+        messages: List[LLMMessage],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None
+    ) -> str:
+        """
+        Generate a completion using LLMMessage objects.
+
+        Args:
+            messages: List of LLMMessage instances
+            temperature: Override default temperature
+            max_tokens: Override default max tokens
+
+        Returns:
+            The generated response text
+        """
+        kwargs = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature or self.temperature,
+            "max_tokens": max_tokens or self.max_tokens
+        }
+
+        response = self.client.chat.completions.create(**kwargs)
+
+        return response.choices[0].message.content.strip()
+
+    def generate_structured_response_from_llm_messages(
+        self,
+        messages: List[LLMMessage],
+        schema: Dict[str, Any],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate a structured response using LLMMessage objects.
+
+        Args:
+            messages: List of LLMMessage instances
+            schema: JSON schema for response validation
+            temperature: Override default temperature
+            max_tokens: Override default max tokens
+
+        Returns:
+            The parsed JSON response matching the schema
+        """
+        try:
+            kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": temperature or self.temperature,
+                "max_tokens": max_tokens or self.max_tokens,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "extraction_schema",
+                        "strict": True,
+                        "schema": schema
+                    }
+                }
+            }
+
+            response = self.client.chat.completions.create(**kwargs)
+            content = response.choices[0].message.content.strip()
+
+            # Parse and return the structured response
+            return json.loads(content)
+
+        except Exception as e:
+            logger.error(f"Error generating conversation structured response: {e}")
+            raise
+
+    def build_llm_messages(
+        self,
+        system_prompt: Optional[str] = None,
+        conversation_history: Optional[List[LLMMessage]] = None,
+        user_message: Optional[str] = None
+    ) -> List[LLMMessage]:
+        """
+        Build a complete conversation message list using LLMMessage objects.
+
+        Args:
+            system_prompt: Optional system prompt to start the conversation
+            conversation_history: Optional list of previous LLMMessage objects
+            user_message: Optional new user message to append
+
+        Returns:
+            Complete list of LLMMessage objects
+        """
+        messages = []
+
+        # Add system prompt if provided
+        if system_prompt:
+            messages.append(LLMMessage("system", system_prompt))
+
+        # Add conversation history if provided
+        if conversation_history:
+            messages.extend(conversation_history)
+
+        # Add new user message if provided
+        if user_message:
+            messages.append(LLMMessage("user", user_message))
+
+        return messages
 
 # Global LLM service instance
 llm_service = LLMService()

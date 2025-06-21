@@ -15,10 +15,8 @@ class Story:
     """Data class representing a story record from the stories table."""
     
     id: UUID = field(default_factory=uuid.uuid4)
-    filename: Optional[str] = None
     title: Optional[str] = None
     content: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
@@ -43,10 +41,8 @@ class Story:
         
         return cls(
             id=story_id,
-            filename=data.get('filename'),
             title=data.get('title'),
             content=data.get('content', ''),
-            metadata=data.get('metadata', {}),
             created_at=created_at,
             updated_at=updated_at
         )
@@ -55,10 +51,8 @@ class Story:
         """Convert Story instance to dictionary for database operations."""
         return {
             'id': str(self.id),
-            'filename': self.filename,
             'title': self.title,
             'content': self.content,
-            'metadata': self.metadata,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -127,7 +121,6 @@ class PersonalityProfile:
     """Data class representing a personality profile record from the personality_profiles table."""
     
     id: UUID = field(default_factory=uuid.uuid4)
-    # user_id: str = "default"
     values: List[str] = field(default_factory=list)
     formality_vocabulary: str = ""
     tone: str = ""
@@ -197,14 +190,41 @@ class PersonalityProfile:
 
 
 @dataclass
+class LLMMessage:
+    """Data class representing a message in LLM service format."""
+
+    role: str  # 'system', 'user', or 'assistant'
+    content: str
+
+    def __post_init__(self):
+        """Validate role after initialization."""
+        if self.role not in ['system', 'user', 'assistant']:
+            raise ValueError("Role must be 'system', 'user', or 'assistant'")
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'LLMMessage':
+        """Create an LLMMessage instance from a dictionary."""
+        return cls(
+            role=data.get('role', 'user'),
+            content=data.get('content', '')
+        )
+
+    def to_dict(self) -> Dict[str, str]:
+        """Convert LLMMessage instance to dictionary."""
+        return {
+            'role': self.role,
+            'content': self.content
+        }
+
+
+@dataclass
 class ConversationMessage:
     """Data class representing a conversation message record from the conversation_history table."""
-    
+
     id: UUID = field(default_factory=uuid.uuid4)
     user_id: str = "default"
-    role: str = "user"  # 'user' or 'assistant'
+    role: str = "user"  # 'system', 'user', or 'assistant'
     content: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[datetime] = None
     
     @classmethod
@@ -227,7 +247,6 @@ class ConversationMessage:
             user_id=data.get('user_id', 'default'),
             role=data.get('role', 'user'),
             content=data.get('content', ''),
-            metadata=data.get('metadata', {}),
             created_at=created_at
         )
     
@@ -238,9 +257,15 @@ class ConversationMessage:
             'user_id': self.user_id,
             'role': self.role,
             'content': self.content,
-            'metadata': self.metadata,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+    def to_llm_message(self) -> LLMMessage:
+        """Convert ConversationMessage to LLM service message format."""
+        return LLMMessage(
+            role=self.role,
+            content=self.content
+        )
 
 
 # Utility functions for working with models
@@ -257,6 +282,21 @@ def story_analyses_from_dict_list(data_list: List[Dict[str, Any]]) -> List[Story
 def conversation_messages_from_dict_list(data_list: List[Dict[str, Any]]) -> List[ConversationMessage]:
     """Convert a list of dictionaries to a list of ConversationMessage instances."""
     return [ConversationMessage.from_dict(data) for data in data_list]
+
+
+def conversation_messages_to_llm_format(messages: List[ConversationMessage]) -> List[LLMMessage]:
+    """Convert a list of ConversationMessage instances to LLM service format."""
+    return [message.to_llm_message() for message in messages]
+
+
+def llm_messages_to_dict_list(messages: List[LLMMessage]) -> List[Dict[str, str]]:
+    """Convert a list of LLMMessage instances to dictionary format."""
+    return [message.to_dict() for message in messages]
+
+
+def dict_list_to_llm_messages(data_list: List[Dict[str, str]]) -> List[LLMMessage]:
+    """Convert a list of dictionaries to LLMMessage instances."""
+    return [LLMMessage.from_dict(data) for data in data_list]
 
 
 @dataclass

@@ -4,13 +4,14 @@ Handles connection and CRUD operations with the Supabase database.
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from supabase import create_client, Client
 from config.settings import settings
 from core.models import (
-    Story, StoryAnalysis, PersonalityProfile, ConversationMessage,
+    Story, StoryAnalysis, PersonalityProfile, ConversationMessage, LLMMessage,
     stories_from_dict_list, story_analyses_from_dict_list,
-    conversation_messages_from_dict_list
+    conversation_messages_from_dict_list, conversation_messages_to_llm_format,
+    llm_messages_to_dict_list
 )
 
 logger = logging.getLogger(__name__)
@@ -46,25 +47,6 @@ class SupabaseClient:
             return stories_from_dict_list(result.data)
         except Exception as e:
             logger.error(f"Error retrieving stories: {e}")
-            raise
-
-    def get_story_by_id(self, story_id: str) -> Optional[Story]:
-        """
-        Retrieve a specific story by ID.
-
-        Args:
-            story_id: The ID of the story to retrieve
-
-        Returns:
-            The Story instance or None if not found
-        """
-        try:
-            result = self.client.table("stories").select("*").eq("id", story_id).execute()
-            if result.data:
-                return Story.from_dict(result.data[0])
-            return None
-        except Exception as e:
-            logger.error(f"Error retrieving story {story_id}: {e}")
             raise
     
     # Story analysis table operations
@@ -205,6 +187,38 @@ class SupabaseClient:
             logger.error(f"Error retrieving conversation history: {e}")
             raise
 
+    def get_conversation_history_for_llm(
+        self,
+        user_id: str = "default",
+        limit: int = 10
+    ) -> List[LLMMessage]:
+        """
+        Retrieve conversation history formatted for LLM service.
+
+        Args:
+            user_id: The user ID
+            limit: Maximum number of messages to retrieve
+
+        Returns:
+            List of message dictionaries in LLM format
+        """
+        try:
+            query = (
+                self.client.table("conversation_history")
+                .select("*")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .limit(limit)
+            )
+
+            result = query.execute()
+            messages = conversation_messages_from_dict_list(result.data)
+            messages = list(reversed(messages))  # Return in chronological order
+
+            return conversation_messages_to_llm_format(messages)
+        except Exception as e:
+            logger.error(f"Error retrieving conversation history for LLM: {e}")
+            raise
 
 # Global Supabase client instance
 supabase_client = SupabaseClient()
