@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Terminal Chat Application for Narrative Digital Twin MVP - Phase 2
 
@@ -8,7 +7,6 @@ This script provides a command-line chat interface that:
 3. Manages the main conversation loop
 """
 
-import os
 import sys
 import logging
 from pathlib import Path
@@ -72,34 +70,15 @@ class ChatInterface:
         print("="*40)
         print("help     - Show this help message")
         print("clear    - Clear conversation history")
-        print("stats    - Show conversation statistics")
         print("quit     - Exit the chat")
         print("exit     - Exit the chat")
         print("bye      - Exit the chat")
         print("="*40 + "\n")
 
-    def display_stats(self):
-        """Display conversation statistics."""
-        try:
-            state = self.engine.get_or_create_state(self.user_id)
-
-            print("\n" + "="*40)
-            print("CONVERSATION STATISTICS:")
-            print("="*40)
-            print(f"Turn count: {state.state['turn_count']}")
-            print(f"Current topics: {', '.join(state.state['current_topics']) if state.state['current_topics'] else 'None'}")
-            print(f"User ID: {state.user_id}")
-            print(f"Stories told: {len(state.state['retrieved_story_history'])}")
-            print("="*40 + "\n")
-
-        except Exception as e:
-            logger.error(f"Error displaying stats: {e}")
-            print("\n❌ Error loading conversation statistics.\n")
-
     def clear_history(self):
         """Clear conversation state (local only)."""
         try:
-            if self.user_id in self.engine.states:
+            if self.user_id in self.engine.conversations:
                 # Reset the conversation state
                 self.engine.reset_conversation(self.user_id)
                 print("\n✅ Conversation state reset.\n")
@@ -129,9 +108,6 @@ class ChatInterface:
             return True
         elif command == 'clear':
             self.clear_history()
-            return True
-        elif command == 'stats':
-            self.display_stats()
             return True
 
         return False

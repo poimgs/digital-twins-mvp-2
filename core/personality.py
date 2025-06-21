@@ -7,12 +7,10 @@ Supports two approaches:
 2. Raw Text Analysis: Direct analysis of story corpus for initial personality inference
 """
 
-import json
 import logging
 from typing import List, Optional
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
-from core.utils import load_prompts
 from core.models import Story, PersonalityProfile
 
 logger = logging.getLogger(__name__)
@@ -20,14 +18,6 @@ logger = logging.getLogger(__name__)
 
 class PersonalityProfiler:
     """Handles the generation and management of personality profiles using multiple approaches."""
-
-    def __init__(self):
-        """Initialize the personality profiler with prompts and schemas."""
-        self.prompts = load_prompts()
-        # Load schema from prompts.json instead of defining it locally
-        self.personality_schema = self.prompts["schemas"]["personality_schema"]
-
-
 
     def generate_personality(
         self,
@@ -61,22 +51,22 @@ class PersonalityProfiler:
 
             # Get prompts for raw text personality analysis
             system_prompt = """You are an expert in narrative psychology and personality analysis. You have been given a collection of stories. Your task is to perform a deep analysis of these texts to create a comprehensive personality profile.
-            
-            **Instructions:**
-            Read all the provided stories and synthesize your findings to answer the following questions. Base your answers SOLELY on the content and style of the writing.
-            
-            1. **Core Values & Motivations:**
-            - What recurring themes suggest their core values? What principles seem to drive their actions in these stories?
-            - What situations or behaviors consistently trigger an action from them?
-            - What are the underlying psychological drivers that motivate their behavior?
-            
-            2. **Communication Style & Voice:**
-            - **Formality & Vocabulary:** Is the language formal or informal? Simple or complex? Technical or anecdotal?
-            - **Tone:** What is the dominant emotional tone across the stories? Is it humorous, serious, reflective, optimistic, or something else?
-            - **Sentence Structure:** Does the person use short, direct sentences or long, descriptive ones?
-            - **Recurring Phrases/Metaphors:** Are there any unique phrases, sayings, or metaphors they use repeatedly?
-            - **Emotional Expression:** How do they typically express emotions through language - directly, indirectly, through humor, etc.?
-            - **Storytelling Style:** What is their approach to narrative - linear, circular, detail-oriented, big-picture focused?"""
+
+**Instructions:**
+Read all the provided stories and synthesize your findings to answer the following questions. Base your answers SOLELY on the content and style of the writing.
+
+1. **Core Values & Motivations:**
+- What recurring themes suggest their core values? What principles seem to drive their actions in these stories?
+- What situations or behaviors consistently trigger an action from them?
+- What are the underlying psychological drivers that motivate their behavior?
+
+2. **Communication Style & Voice:**
+- **Formality & Vocabulary:** Is the language formal or informal? Simple or complex? Technical or anecdotal?
+- **Tone:** What is the dominant emotional tone across the stories? Is it humorous, serious, reflective, optimistic, or something else?
+- **Sentence Structure:** Does the person use short, direct sentences or long, descriptive ones?
+- **Recurring Phrases/Metaphors:** Are there any unique phrases, sayings, or metaphors they use repeatedly?
+- **Emotional Expression:** How do they typically express emotions through language - directly, indirectly, through humor, etc.?
+- **Storytelling Style:** What is their approach to narrative - linear, circular, detail-oriented, big-picture focused?"""
             
             user_prompt = f"""Analyze the following collection of {len(story_texts)} personal stories and create a comprehensive personality profile:\n\n{combined_corpus}"""
             

@@ -8,7 +8,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from openai import OpenAI
 from config.settings import settings
-from core.models import ConversationMessage, LLMMessage, llm_messages_to_dict_list
+from core.models import LLMMessage
     
 
 logger = logging.getLogger(__name__)
@@ -217,39 +217,6 @@ class LLMService:
         except Exception as e:
             logger.error(f"Error generating conversation structured response: {e}")
             raise
-
-    def build_llm_messages(
-        self,
-        system_prompt: Optional[str] = None,
-        conversation_history: Optional[List[LLMMessage]] = None,
-        user_message: Optional[str] = None
-    ) -> List[LLMMessage]:
-        """
-        Build a complete conversation message list using LLMMessage objects.
-
-        Args:
-            system_prompt: Optional system prompt to start the conversation
-            conversation_history: Optional list of previous LLMMessage objects
-            user_message: Optional new user message to append
-
-        Returns:
-            Complete list of LLMMessage objects
-        """
-        messages = []
-
-        # Add system prompt if provided
-        if system_prompt:
-            messages.append(LLMMessage("system", system_prompt))
-
-        # Add conversation history if provided
-        if conversation_history:
-            messages.extend(conversation_history)
-
-        # Add new user message if provided
-        if user_message:
-            messages.append(LLMMessage("user", user_message))
-
-        return messages
 
 # Global LLM service instance
 llm_service = LLMService()

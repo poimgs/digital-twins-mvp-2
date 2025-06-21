@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS stories (
 CREATE TABLE IF NOT EXISTS story_analysis (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     story_id UUID REFERENCES stories(id) ON DELETE CASCADE,
+    summary TEXT,
     triggers TEXT[],
     emotions TEXT[],
     thoughts TEXT[], 
@@ -51,10 +52,6 @@ CREATE TABLE IF NOT EXISTS conversation_state (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id VARCHAR(100) DEFAULT 'default',
     summary TEXT DEFAULT '',
-    triggers TEXT[],
-    emotions TEXT[],
-    thoughts TEXT[],
-    values TEXT[],
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id)

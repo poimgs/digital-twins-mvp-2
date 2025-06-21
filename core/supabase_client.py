@@ -5,15 +5,14 @@ Handles connection and CRUD operations with the Supabase database.
 
 import json
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime, timezone
 from supabase import create_client, Client
 from config.settings import settings
 from core.models import (
     Story, StoryAnalysis, PersonalityProfile, ConversationMessage, LLMMessage, ConversationState,
-    stories_from_dict_list, story_analyses_from_dict_list,
-    conversation_messages_from_dict_list, conversation_messages_to_llm_format,
-    llm_messages_to_dict_list
+    StoryWithAnalysis, stories_from_dict_list, story_analyses_from_dict_list,
+    conversation_messages_from_dict_list, conversation_messages_to_llm_format
 )
 
 logger = logging.getLogger(__name__)
@@ -88,6 +87,66 @@ class SupabaseClient:
             return story_analyses_from_dict_list(result.data)
         except Exception as e:
             logger.error(f"Error retrieving story analyses: {e}")
+            raise
+
+    def get_stories_with_analysis(self) -> List[StoryWithAnalysis]:
+        """
+        Retrieve stories with their analysis data.
+
+        Returns:
+            List of StoryWithAnalysis instances
+        """
+        try:
+            # Build the JOIN query to get stories with their analysis
+            query = self.client.table("stories").select("""
+                id,
+                title,
+                content,
+                created_at,
+                updated_at,
+                story_analysis!inner(
+                    id,
+                    triggers,
+                    emotions,
+                    thoughts,
+                    values,
+                    created_at
+                )
+            """)
+
+            result = query.execute()
+
+            # Transform the nested result into StoryWithAnalysis objects
+            stories_with_analysis = []
+            for row in result.data:
+                # Extract story data
+                story_data = {
+                    'id': row['id'],
+                    'title': row['title'],
+                    'content': row['content'],
+                    'story_created_at': row['created_at'],
+                    'story_updated_at': row['updated_at']
+                }
+
+                # Extract analysis data (should be a single item due to inner join)
+                if row['story_analysis'] and len(row['story_analysis']) > 0:
+                    analysis = row['story_analysis'][0]  # Take first analysis
+                    story_data.update({
+                        'analysis_id': analysis['id'],
+                        'triggers': analysis['triggers'],
+                        'emotions': analysis['emotions'],
+                        'thoughts': analysis['thoughts'],
+                        'values': analysis['values'],
+                        'analysis_created_at': analysis['created_at']
+                    })
+
+                stories_with_analysis.append(StoryWithAnalysis.from_dict(story_data))
+
+            logger.info(f"Retrieved {len(stories_with_analysis)} stories with analysis")
+            return stories_with_analysis
+
+        except Exception as e:
+            logger.error(f"Error retrieving stories with analysis: {e}")
             raise
     
     # Personality profiles table operations
@@ -275,11 +334,7 @@ class SupabaseClient:
     def update_conversation_state(
         self,
         user_id: str,
-        summary: Optional[str] = None,
-        triggers: Optional[List[str]] = None,
-        emotions: Optional[List[str]] = None,
-        thoughts: Optional[List[str]] = None,
-        values: Optional[List[str]] = None
+        summary: Optional[str] = None
     ) -> Optional[ConversationState]:
         """
         Update specific fields of conversation state.
@@ -287,10 +342,6 @@ class SupabaseClient:
         Args:
             user_id: The user ID
             summary: Updated summary text
-            triggers: Updated triggers list
-            emotions: Updated emotions list
-            thoughts: Updated thoughts list
-            values: Updated values list
 
         Returns:
             The updated ConversationState instance or None if not found
@@ -301,14 +352,6 @@ class SupabaseClient:
 
             if summary is not None:
                 update_data["summary"] = summary
-            if triggers is not None:
-                update_data["triggers"] = json.dumps(triggers)
-            if emotions is not None:
-                update_data["emotions"] = json.dumps(emotions)
-            if thoughts is not None:
-                update_data["thoughts"] = json.dumps(thoughts)
-            if values is not None:
-                update_data["values"] = json.dumps(values)
 
             result = (
                 self.client.table("conversation_state")
@@ -323,6 +366,28 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Error updating conversation state: {e}")
             raise
+        
+    def reset_conversation(self, user_id: str = "default") -> bool:
+        """
+        Reset the conversation state for a user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if reset was successful
+        """
+        try:
+            # Delete conversation state
+            self.client.table("conversation_state").delete().eq("user_id", user_id).execute()
+
+            # Delete conversation history
+            self.client.table("conversation_history").delete().eq("user_id", user_id).execute()
+
+            return True
+        except Exception as e:
+            logger.error(f"Error resetting conversation: {e}")
+            return False
 
 # Global Supabase client instance
 supabase_client = SupabaseClient()

@@ -1,7 +1,0 @@
-During the investigation of the Challenger disaster, I was getting frustrated. We were getting all these briefings from NASA officials, full of jargon and charts, but they weren't getting to the point. They were telling us how complex everything was, how many parts there were. I didn't want to hear about complexity; I wanted to know what went wrong.
-
-One day, I was at a press conference, and I had an idea. I got a glass of ice water, a C-clamp, and a small piece of the O-ring material we were investigating. In front of all the cameras, I squeezed the rubbery material with the clamp and dipped it into the ice water. I let it sit there for a minute.
-
-Then I took it out and released the clamp. The material didn't spring back. It stayed compressed. I said, "I believe that has some significance for our problem."
-
-The point was simple. The material used for the O-rings was not resilient at low temperatures. The night of the launch was cold. Therefore, the seals would not have sealed properly. It was a simple demonstration of a fundamental physical property. It cut through all the complex reports and showed the likely physical cause directly. The officials weren't happy that I had done it so publicly, but it was necessary to cut through the bureaucratic fog and get to the truth. For a successful technology, reality must take precedence over public relations, for nature cannot be fooled.

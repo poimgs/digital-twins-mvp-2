@@ -1,9 +1,0 @@
-I was at Los Alamos, and I got to be known as a safecracker. It started when I was looking at a filing cabinet. They were a new kind, with a bar that came down and a lock on the top. I pulled on the bar and jiggled it and I saw that when the bar was in a certain position, a little bit of the number on the wheel of the combination lock showed. So I found I could read the last number.
-
-Then I found that if I pushed the bar in, it would hit a stop. If the second-to-last number was right, the stop would be in a different position. I could feel it. So now I could find the last two numbers.
-
-From there, I figured that for the first number, I only had to try the remaining combinations. There were only about eight or ten possibilities. It was a matter of trying them all. The first time I opened a cabinet, I was very proud of myself. The physicist I was sharing an office with, Frederic de Hoffmann, came in and asked, "What are you doing?"
-
-I said, "I'm opening the filing cabinet."
-
-He said, "Oh? I have a filing cabinet I can't open. I've lost the combination." It had all his research notes in it. So I went over to his cabinet and started fiddling with it. I tried the last number, then the second to last. Then I tried the first few numbers. Click! It opened. He was astounded. He told everybody, "Feynman is a safecracker!" Of course, the real secret was that all the cabinets were set to their factory combination, 27-18-28, or some simple variant. But nobody ever thought to check that. They just assumed it was a miracle.

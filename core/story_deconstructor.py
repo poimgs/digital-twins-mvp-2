@@ -198,6 +198,40 @@ class StoryDeconstructor:
         except Exception as e:
             logger.error(f"Error extracting violated value: {e}")
             return []
+        
+    def _summarize_story(self, story_text: str, triggers: List[str], emotions: List[str], thoughts: List[str], values: List[str]) -> str:
+        """
+        Phase 3: Summarize the story using context from Phase 1 and 2.
+
+        Args:
+            story_text: The raw story text
+            triggers: triggers
+            emotions: emotions
+            thoughts: thoughts
+            values: values
+
+        Returns:
+            Summary of the story
+        """
+        try:
+            system_prompt = "You are a story summarization specialist. Your task is to condense a story into a brief summary. You are also provided with pre-processed components of the story."
+            user_prompt = f"""Analyze the following story and its pre-processed components to create a brief summary:
+Story: {story_text}
+Triggers: {triggers}
+Emotions: {emotions}
+Thoughts: {thoughts}
+Values: {values}
+            """
+
+            # Use structured response with summary schema
+            return llm_service.generate_completion(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt
+            )
+
+        except Exception as e:
+            logger.error(f"Error summarizing story: {e}")
+            return ""
 
     def analyze_story(self, story_text: str, story_id: str) -> StoryAnalysis:
         """
@@ -228,11 +262,14 @@ class StoryDeconstructor:
             logger.debug(f"Phase 1 complete for story {story_id}")
 
             # Phase 2: Context-aware enrichment
-            logger.debug(f"Phase 2: Extracting violated values for story {story_id}")
+            logger.debug(f"Phase 2: Extracting values for story {story_id}")
 
             values = self._extract_values(story_text, triggers, emotions, thoughts)
 
             logger.debug(f"Phase 2 complete for story {story_id}")
+            
+            # Phase 3: Summarize the story
+            summary = self._summarize_story(story_text, triggers, emotions, thoughts, values)
 
             # Create StoryAnalysis instance with individual fields
             story_analysis = StoryAnalysis(
@@ -241,6 +278,7 @@ class StoryDeconstructor:
                 emotions=emotions,
                 thoughts=thoughts,
                 values=values,
+                summary=summary
             )
 
             logger.info(f"Successfully completed two-phase analysis for story {story_id}")

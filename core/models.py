@@ -9,7 +9,6 @@ from typing import Dict, Any, Optional, List
 from uuid import UUID
 import uuid
 
-
 @dataclass
 class Story:
     """Data class representing a story record from the stories table."""
@@ -64,6 +63,7 @@ class StoryAnalysis:
 
     id: UUID = field(default_factory=uuid.uuid4)
     story_id: UUID = field(default_factory=uuid.uuid4)
+    summary: str = field(default_factory=str)
     triggers: List[str] = field(default_factory=list)
     emotions: List[str] = field(default_factory=list)
     thoughts: List[str] = field(default_factory=list)
@@ -112,9 +112,6 @@ class StoryAnalysis:
             'values': self.values,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
-
-
-
 
 @dataclass
 class PersonalityProfile:
@@ -306,10 +303,6 @@ class ConversationState:
     id: UUID = field(default_factory=uuid.uuid4)
     user_id: str = "default"
     summary: str = ""
-    triggers: List[str] = field(default_factory=list)
-    emotions: List[str] = field(default_factory=list)
-    thoughts: List[str] = field(default_factory=list)
-    values: List[str] = field(default_factory=list)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -336,10 +329,6 @@ class ConversationState:
             id=state_id,
             user_id=data.get('user_id', 'default'),
             summary=data.get('summary', ''),
-            triggers=data.get('triggers', []),
-            emotions=data.get('emotions', []),
-            thoughts=data.get('thoughts', []),
-            values=data.get('values', []),
             created_at=created_at,
             updated_at=updated_at
         )
@@ -350,36 +339,128 @@ class ConversationState:
             'id': str(self.id),
             'user_id': self.user_id,
             'summary': self.summary,
-            'triggers': self.triggers,
-            'emotions': self.emotions,
-            'thoughts': self.thoughts,
-            'values': self.values,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
 
 @dataclass
-class UserInputAnalysis:
-    """Data class for user input analysis results."""
+class StoryWithAnalysis:
+    """Data class representing a story with its corresponding analysis."""
 
-    topics: List[str] = field(default_factory=list)
-    concepts: List[str] = field(default_factory=list)
-    intent: str = "general_conversation"
+    # Story fields
+    id: UUID = field(default_factory=uuid.uuid4)
+    title: Optional[str] = None
+    content: str = ""
+    story_created_at: Optional[datetime] = None
+    story_updated_at: Optional[datetime] = None
+
+    # Analysis fields
+    analysis_id: Optional[UUID] = None
+    summary: str = ""
+    triggers: List[str] = field(default_factory=list)
+    emotions: List[str] = field(default_factory=list)
+    thoughts: List[str] = field(default_factory=list)
+    values: List[str] = field(default_factory=list)
+    analysis_created_at: Optional[datetime] = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'UserInputAnalysis':
-        """Create a UserInputAnalysis instance from a dictionary."""
+    def from_dict(cls, data: Dict[str, Any]) -> 'StoryWithAnalysis':
+        """Create a StoryWithAnalysis instance from a dictionary (typically from a JOIN query)."""
+        # Handle UUID conversion for story ID
+        story_id = data.get('id')
+        if isinstance(story_id, str):
+            story_id = UUID(story_id)
+        elif story_id is None:
+            story_id = uuid.uuid4()
+
+        # Handle UUID conversion for analysis ID
+        analysis_id = data.get('analysis_id')
+        if isinstance(analysis_id, str):
+            analysis_id = UUID(analysis_id)
+        elif analysis_id is None:
+            analysis_id = None
+
+        # Handle datetime conversion for story timestamps
+        story_created_at = data.get('created_at') or data.get('story_created_at')
+        if isinstance(story_created_at, str):
+            story_created_at = datetime.fromisoformat(story_created_at.replace('Z', '+00:00'))
+
+        story_updated_at = data.get('updated_at') or data.get('story_updated_at')
+        if isinstance(story_updated_at, str):
+            story_updated_at = datetime.fromisoformat(story_updated_at.replace('Z', '+00:00'))
+
+        # Handle datetime conversion for analysis timestamp
+        analysis_created_at = data.get('analysis_created_at')
+        if isinstance(analysis_created_at, str):
+            analysis_created_at = datetime.fromisoformat(analysis_created_at.replace('Z', '+00:00'))
+
         return cls(
-            topics=data.get('topics', []),
-            concepts=data.get('concepts', []),
-            intent=data.get('intent', 'general_conversation')
+            id=story_id,
+            title=data.get('title'),
+            content=data.get('content', ''),
+            story_created_at=story_created_at,
+            story_updated_at=story_updated_at,
+            analysis_id=analysis_id,
+            triggers=data.get('triggers', []),
+            emotions=data.get('emotions', []),
+            thoughts=data.get('thoughts', []),
+            values=data.get('values', []),
+            analysis_created_at=analysis_created_at
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert UserInputAnalysis instance to dictionary."""
+        """Convert StoryWithAnalysis instance to dictionary for API responses."""
         return {
-            'topics': self.topics,
-            'concepts': self.concepts,
-            'intent': self.intent
+            'id': str(self.id),
+            'title': self.title,
+            'content': self.content,
+            'story_created_at': self.story_created_at.isoformat() if self.story_created_at else None,
+            'story_updated_at': self.story_updated_at.isoformat() if self.story_updated_at else None,
+            'analysis_id': str(self.analysis_id) if self.analysis_id else None,
+            'triggers': self.triggers,
+            'emotions': self.emotions,
+            'thoughts': self.thoughts,
+            'values': self.values,
+            'analysis_created_at': self.analysis_created_at.isoformat() if self.analysis_created_at else None
+        }
+
+    def has_analysis(self) -> bool:
+        """Check if this story has analysis data."""
+        return self.analysis_id is not None
+
+    def get_analysis_dict(self) -> Dict[str, Any]:
+        """Get analysis data as a dictionary for compatibility with existing code."""
+        return {
+            'triggers': self.triggers,
+            'emotions': self.emotions,
+            'thoughts': self.thoughts,
+            'values': self.values
+        }
+
+
+def stories_with_analysis_from_dict_list(data_list: List[Dict[str, Any]]) -> List[StoryWithAnalysis]:
+    """Convert a list of dictionaries to StoryWithAnalysis instances."""
+    return [StoryWithAnalysis.from_dict(data) for data in data_list]
+
+@dataclass
+class ConversationResponse:
+    """Data class representing a conversation response."""
+
+    response: str
+    follow_up_questions: List[str]
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ConversationResponse':
+        """Create a ConversationResponse instance from a dictionary."""
+        return cls(
+            response=data.get('response', ''),
+            follow_up_questions=data.get('follow_up_questions', [])
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert ConversationResponse instance to dictionary for API responses."""
+        return {
+            'response': self.response,
+            'follow_up_questions': self.follow_up_questions
         }
