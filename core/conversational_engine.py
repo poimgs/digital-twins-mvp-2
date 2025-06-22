@@ -29,11 +29,12 @@ class ConversationalEngine:
         self.story_retrieval_manager = StoryRetrievalManager()
         self.bot_personality: str = self.get_bot_personality_summary()
         
-        # Get bot call to action
+        # Get bot call to action and keyword
         bot = supabase_client.get_bot_by_id(bot_id)
         if not bot:
             raise ValueError(f"Bot with ID {bot_id} not found")
         self.call_to_action = bot.call_to_action
+        self.call_to_action_keyword = bot.call_to_action_keyword
 
     def get_bot_personality_summary(self) -> str:
         """Get or create personality summary for a bot."""
@@ -196,12 +197,12 @@ SUMMARY OF ALL STORIES:
             # Check if the LLM naturally included the call to action in the response
             # If so, mark it as shown to prevent future prompting
             if not conversation_manager.call_to_action_shown:
-                # Simple heuristic: if the response contains key terms from the CTA, consider it shown
-                cta_keywords = self.call_to_action.lower().split()
                 response_lower = response_text.lower()
+                cta_mentioned = False
 
-                # Check if response contains significant CTA content (more sophisticated detection could be added)
-                cta_mentioned = any(keyword in response_lower for keyword in cta_keywords if len(keyword) > 3)
+                # Check if the specific keyword is mentioned in the response
+                cta_mentioned = self.call_to_action_keyword.lower() in response_lower
+                logger.info(f"Checking for CTA keyword '{self.call_to_action_keyword}' in response: {cta_mentioned}")
 
                 if cta_mentioned:
                     try:

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS bots (
     description TEXT,
     welcome_message TEXT NOT NULL,
     call_to_action TEXT NOT NULL,
+    call_to_action_keyword TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(name)
