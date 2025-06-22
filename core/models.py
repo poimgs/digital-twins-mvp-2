@@ -593,23 +593,18 @@ class ConversationResponse:
 
     response: str
     follow_up_questions: List[str]
-    call_to_action: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ConversationResponse':
         """Create a ConversationResponse instance from a dictionary."""
         return cls(
             response=data.get('response', ''),
-            follow_up_questions=data.get('follow_up_questions', []),
-            call_to_action=data.get('call_to_action')
+            follow_up_questions=data.get('follow_up_questions', [])
         )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert ConversationResponse instance to dictionary for API responses."""
-        result = {
+        return {
             'response': self.response,
             'follow_up_questions': self.follow_up_questions
         }
-        if self.call_to_action:
-            result['call_to_action'] = self.call_to_action
-        return result

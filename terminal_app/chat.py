@@ -144,12 +144,8 @@ class ChatInterface:
                 # Use terminal chat_id for terminal app
                 response = self.engine.generate_response(user_input, str(self.bot_info.id), chat_id=self.chat_id)
 
-                # Display response
+                # Display response (which may naturally include call to action)
                 print(f"\n{self.bot_info.name}: {response.response}")
-
-                # Display call to action if provided
-                if response.call_to_action:
-                    print(f"\n🎯 {response.call_to_action}")
 
                 # Display follow-up questions if available
                 if response.follow_up_questions:
