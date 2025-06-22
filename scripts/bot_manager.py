@@ -99,6 +99,30 @@ def create_bot(
         raise
 
 
+def list_all_bots():
+    """List all bots in the database."""
+    try:
+        bots = supabase_client.get_all_bots()
+
+        if not bots:
+            print("\n📭 No bots found in the database.")
+            return
+
+        print(f"\n📋 Found {len(bots)} bot(s):")
+        print("="*80)
+
+        for bot in bots:
+            print(f"🤖 {bot.name}")
+            print(f"   ID: {bot.id}")
+            print(f"   Description: {bot.description or 'No description'}")
+            print(f"   Created: {bot.created_at.strftime('%Y-%m-%d %H:%M:%S') if bot.created_at else 'Unknown'}")
+            print("-" * 80)
+
+    except Exception as e:
+        logger.error(f"Error listing bots: {e}")
+        print(f"❌ Error listing bots: {e}")
+
+
 def create_sample_bot():
     """Create a sample bot for testing."""
     try:
@@ -115,10 +139,10 @@ def create_sample_bot():
             emotional_expression="Open and genuine, comfortable sharing feelings",
             storytelling_style="Narrative-driven with personal anecdotes and reflections"
         )
-        
+
         print(f"\n✅ Successfully created sample bot: {sample_bot.name}")
         print(f"Bot ID: {sample_bot.id}")
-        
+
     except Exception as e:
         logger.error(f"Error creating sample bot: {e}")
         print(f"❌ Error creating sample bot: {e}")
@@ -137,13 +161,15 @@ def main():
         print("2. Create sample bot")
         print("3. Exit")
         print("="*60)
-        
+
         while True:
             choice = input("\nSelect an option (1-3): ").strip()
-            
+
             if choice == "1":
-                create_sample_bot()
+                list_all_bots()
             elif choice == "2":
+                create_sample_bot()
+            elif choice == "3":
                 print("\n👋 Goodbye!")
                 break
             else:

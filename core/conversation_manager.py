@@ -80,17 +80,17 @@ LLM response: {llm_response}"""
                 user_prompt=user_prompt
             )
 
-            # Update local state
-            self.summary = updated_summary
-
-            # Persist to database
+            # Persist to database first, then update local state
             try:
                 supabase_client.update_conversation_state(
                     chat_id=self.chat_id,
                     summary=updated_summary
                 )
+                # Only update local state if database update succeeds
+                self.summary = updated_summary
             except Exception as db_error:
                 logger.error(f"Error persisting summary to database: {db_error}")
+                # Keep the old summary if database update fails
 
             return updated_summary
 

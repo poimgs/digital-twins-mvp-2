@@ -24,10 +24,10 @@ class ConversationalEngine:
 
     def __init__(self, bot_id: str):
         """Initialize the conversational engine."""
+        self.bot_id = bot_id
         self.conversations: Dict[str, ConversationManager] = {}  # chat_id -> ConversationManager
         self.story_retrieval_manager = StoryRetrievalManager()
         self.bot_personality: str = self.get_bot_personality_summary()
-        self.bot_id = bot_id
 
     def get_bot_personality_summary(self) -> str:
         """Get or create personality summary for a bot."""

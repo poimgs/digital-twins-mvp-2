@@ -78,9 +78,17 @@ Values: {story.values}
                 user_prompt=user_prompt,
                 schema=schema
             )
-            
-            # Return story with id
-            return next((story for story in stories if story.id == response["story_id"]), None)
+
+            # Return story with id (convert UUID to string for comparison)
+            story_id = response["story_id"]
+            selected_story = next((story for story in stories if str(story.id) == story_id), None)
+
+            if selected_story is None:
+                logger.warning(f"LLM selected story ID {story_id} which was not found in provided stories")
+                # Fallback to first story if available
+                return stories[0] if stories else None
+
+            return selected_story
 
         except Exception as e:
             logger.error(f"Error in judge LLM assessment: {e}")

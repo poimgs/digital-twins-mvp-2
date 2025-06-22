@@ -66,6 +66,20 @@ class SupabaseClient:
             logger.error(f"Error retrieving bot by name: {e}")
             raise
 
+    def get_all_bots(self) -> List[Bot]:
+        """
+        Retrieve all bots from the database.
+
+        Returns:
+            List of Bot instances
+        """
+        try:
+            result = self.client.table("bots").select("*").order("created_at", desc=True).execute()
+            return bots_from_dict_list(result.data)
+        except Exception as e:
+            logger.error(f"Error retrieving all bots: {e}")
+            raise
+
     def insert_bot(self, bot: Bot) -> Bot:
         """
         Insert a new bot.
@@ -224,6 +238,7 @@ class SupabaseClient:
                 updated_at,
                 story_analysis!inner(
                     id,
+                    summary,
                     triggers,
                     emotions,
                     thoughts,
@@ -255,6 +270,7 @@ class SupabaseClient:
                     analysis = row['story_analysis'][0]  # Take first analysis
                     story_data.update({
                         'analysis_id': analysis['id'],
+                        'summary': analysis['summary'],
                         'triggers': analysis['triggers'],
                         'emotions': analysis['emotions'],
                         'thoughts': analysis['thoughts'],
@@ -504,15 +520,23 @@ class SupabaseClient:
             True if reset was successful
         """
         try:
-            # Delete conversation state
-            self.client.table("conversation_state").delete().eq("chat_id", chat_id).execute()
+            # Delete conversation history first (less critical)
+            history_result = self.client.table("conversation_history").delete().eq("chat_id", chat_id).execute()
 
-            # Delete conversation history
-            self.client.table("conversation_history").delete().eq("chat_id", chat_id).execute()
+            # Delete conversation state second (more critical)
+            state_result = self.client.table("conversation_state").delete().eq("chat_id", chat_id).execute()
 
+            logger.info(f"Reset conversation {chat_id}: deleted {len(history_result.data) if history_result.data else 0} history records and {len(state_result.data) if state_result.data else 0} state records")
             return True
         except Exception as e:
             logger.error(f"Error resetting conversation: {e}")
+            # Try to log partial state for debugging
+            try:
+                remaining_state = self.client.table("conversation_state").select("*").eq("chat_id", chat_id).execute()
+                remaining_history = self.client.table("conversation_history").select("id").eq("chat_id", chat_id).execute()
+                logger.error(f"Partial reset state - remaining state records: {len(remaining_state.data) if remaining_state.data else 0}, remaining history records: {len(remaining_history.data) if remaining_history.data else 0}")
+            except:
+                pass  # Don't fail on debugging info
             return False
 
 # Global Supabase client instance

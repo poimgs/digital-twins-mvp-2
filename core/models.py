@@ -504,6 +504,7 @@ class StoryWithAnalysis:
             story_created_at=story_created_at,
             story_updated_at=story_updated_at,
             analysis_id=analysis_id,
+            summary=data.get('summary', ''),
             triggers=data.get('triggers', []),
             emotions=data.get('emotions', []),
             thoughts=data.get('thoughts', []),
@@ -521,6 +522,7 @@ class StoryWithAnalysis:
             'story_created_at': self.story_created_at.isoformat() if self.story_created_at else None,
             'story_updated_at': self.story_updated_at.isoformat() if self.story_updated_at else None,
             'analysis_id': str(self.analysis_id) if self.analysis_id else None,
+            'summary': self.summary,
             'triggers': self.triggers,
             'emotions': self.emotions,
             'thoughts': self.thoughts,
@@ -535,6 +537,7 @@ class StoryWithAnalysis:
     def get_analysis_dict(self) -> Dict[str, Any]:
         """Get analysis data as a dictionary for compatibility with existing code."""
         return {
+            'summary': self.summary,
             'triggers': self.triggers,
             'emotions': self.emotions,
             'thoughts': self.thoughts,
