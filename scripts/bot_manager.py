@@ -32,7 +32,7 @@ def create_bot(
     description: str,
     welcome_message: str,
     call_to_action: str,
-    personality_values: list = None,
+    personality_values: list = [],
     formality_vocabulary: str = "",
     tone: str = "",
     sentence_structure: str = "",
@@ -80,7 +80,6 @@ def create_bot(
             description=description,
             welcome_message=welcome_message,
             call_to_action=call_to_action,
-            is_active=True,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc)
         )
@@ -90,45 +89,14 @@ def create_bot(
         
         # Update personality profile with correct bot_id
         personality_profile.bot_id = created_bot.id
-        created_personality = supabase_client.insert_personality_profile(personality_profile)
+        supabase_client.insert_personality_profile(personality_profile)
         
-        # Update bot with personality profile ID
-        created_bot.personality_profile_id = created_personality.id
-        updated_bot = supabase_client.update_bot(created_bot)
-        
-        logger.info(f"Successfully created bot: {updated_bot.name}")
-        return updated_bot
+        logger.info(f"Successfully created bot: {created_bot.name}")
+        return created_bot
         
     except Exception as e:
         logger.error(f"Error creating bot: {e}")
         raise
-
-
-def list_bots():
-    """List all bots in the system."""
-    try:
-        bots = supabase_client.get_bots(active_only=False)
-        
-        print("\n" + "="*60)
-        print("🤖 ALL BOTS IN SYSTEM")
-        print("="*60)
-        
-        if not bots:
-            print("No bots found.")
-            return
-        
-        for bot in bots:
-            status = "✅ Active" if bot.is_active else "❌ Inactive"
-            print(f"\nBot ID: {bot.id}")
-            print(f"Name: {bot.name}")
-            print(f"Description: {bot.description or 'No description'}")
-            print(f"Status: {status}")
-            print(f"Created: {bot.created_at}")
-            print("-" * 40)
-            
-    except Exception as e:
-        logger.error(f"Error listing bots: {e}")
-        print(f"❌ Error listing bots: {e}")
 
 
 def create_sample_bot():
@@ -174,10 +142,8 @@ def main():
             choice = input("\nSelect an option (1-3): ").strip()
             
             if choice == "1":
-                list_bots()
-            elif choice == "2":
                 create_sample_bot()
-            elif choice == "3":
+            elif choice == "2":
                 print("\n👋 Goodbye!")
                 break
             else:
