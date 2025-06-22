@@ -22,18 +22,18 @@ class ConversationalEngine:
     handling, and contextual awareness for natural dialogue flow across multiple bots.
     """
 
-    def __init__(self):
+    def __init__(self, bot_id: str):
         """Initialize the conversational engine."""
         self.conversations: Dict[str, ConversationManager] = {}  # chat_id -> ConversationManager
         self.story_retrieval_manager = StoryRetrievalManager()
-        self.bot_personalities: Dict[str, str] = {}  # bot_id -> personality_summary
+        self.bot_personality: str = self.get_bot_personality_summary()
+        self.bot_id = bot_id
 
-    def get_bot_personality_summary(self, bot_id: str) -> str:
+    def get_bot_personality_summary(self) -> str:
         """Get or create personality summary for a bot."""
-        if bot_id not in self.bot_personalities:
-            personality_profile = supabase_client.get_personality_profile(bot_id)
-            # Create a more structured and readable personality summary for the digital twin
-            self.bot_personalities[bot_id] = f"""
+        personality_profile = supabase_client.get_personality_profile(self.bot_id)
+        # Create a more structured and readable personality summary for the digital twin
+        return f"""
 PERSONALITY PROFILE:
 
 VALUES & MOTIVATIONS:
@@ -47,7 +47,6 @@ COMMUNICATION STYLE & VOICE:
 - Emotional Expression: {personality_profile.emotional_expression if personality_profile else 'Not specified'}
 - Storytelling Style: {personality_profile.storytelling_style if personality_profile else 'Not specified'}
 """
-        return self.bot_personalities[bot_id]
 
     def get_or_create_conversation_manager(self, chat_id: str, bot_id: str) -> ConversationManager:
         """Get or create conversation manager for a chat."""
@@ -104,7 +103,7 @@ COMMUNICATION STYLE & VOICE:
             conversation_manager = self.get_or_create_conversation_manager(final_chat_id, bot_id)
             conversation_manager.add_user_message(user_message)
 
-            # Get bot-specific stories and personality
+            # Get bot-specific stories
             stories = supabase_client.get_stories_with_analysis(bot_id)
             relevant_story = conversation_manager.find_relevant_story(stories)
             story_summaries = ""
@@ -112,7 +111,6 @@ COMMUNICATION STYLE & VOICE:
                 story_summaries += f"{story.summary}\n\n"
 
             conversation_history = conversation_manager.get_conversation_history_for_llm()
-            personality_summary = self.get_bot_personality_summary(bot_id)
 
             # Note: Bot information can be used for welcome message and call to action logic
 
@@ -126,7 +124,7 @@ CONVERSATION CONTEXT:
 {conversation_manager.summary}
 
 PERSONALITY PROFILE:
-{personality_summary}
+{self.bot_personality}
 
 RELEVANT STORY:
 {relevant_story.summary if relevant_story else 'No relevant story found'}
@@ -207,7 +205,3 @@ SUMMARY OF ALL STORIES:
         except Exception as e:
             logger.error(f"Error resetting conversation: {e}")
             return False
-
-
-# Global conversational engine instance
-conversational_engine = ConversationalEngine()
