@@ -21,11 +21,29 @@ class LLMService:
         """Initialize the LLM service with OpenAI client."""
         if not settings.OPENAI_API_KEY:
             raise ValueError("OpenAI API key not found in environment variables")
-        
+
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         self.model = settings.OPENAI_MODEL
         self.max_tokens = settings.MAX_TOKENS
         self.temperature = settings.TEMPERATURE
+
+        # Check if model supports structured output
+        self.supports_structured_output = self._check_structured_output_support()
+
+        # Log configuration for debugging
+        logger.info(f"LLM Service initialized with model: {self.model}, max_tokens: {self.max_tokens}, temperature: {self.temperature}")
+        logger.info(f"Structured output support: {self.supports_structured_output}")
+
+    def _check_structured_output_support(self) -> bool:
+        """Check if the current model supports structured output with JSON schema."""
+        # Models that support structured output (as of 2024)
+        supported_models = [
+            "gpt-4o",
+            "gpt-4o-2024-08-06",
+            "gpt-4o-mini",
+            "gpt-4o-mini-2024-07-18"
+        ]
+        return any(self.model.startswith(model) for model in supported_models)
     
     def generate_completion(
         self,
@@ -60,8 +78,14 @@ class LLMService:
             }
 
             response = self.client.chat.completions.create(**kwargs)
+            content = response.choices[0].message.content
 
-            return response.choices[0].message.content.strip()
+            # Check if content is None or empty
+            if not content:
+                logger.warning("Received empty response from OpenAI API")
+                raise ValueError("Empty response from OpenAI API")
+
+            return content.strip()
 
         except Exception as e:
             logger.error(f"Error generating completion: {e}")
@@ -110,7 +134,19 @@ class LLMService:
             }
 
             response = self.client.chat.completions.create(**kwargs)
-            content = response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+
+            # Check if content is None or empty
+            if not content:
+                logger.warning("Received empty response from OpenAI API")
+                raise ValueError("Empty response from OpenAI API")
+
+            content = content.strip()
+
+            # Check if content is still empty after stripping
+            if not content:
+                logger.warning("Received whitespace-only response from OpenAI API")
+                raise ValueError("Whitespace-only response from OpenAI API")
 
             # Parse and return the structured response
             return json.loads(content)
@@ -176,7 +212,14 @@ class LLMService:
             The generated response text
         """
         # Convert LLMMessage objects to dictionaries for OpenAI API
-        message_dicts = [message.to_dict() for message in messages]
+        # Filter out any messages with empty content
+        valid_messages = [msg for msg in messages if msg.content and msg.content.strip()]
+
+        if not valid_messages:
+            logger.error("No valid messages found after filtering empty content")
+            raise ValueError("No valid messages to send to OpenAI API")
+
+        message_dicts = [message.to_dict() for message in valid_messages]
 
         kwargs = {
             "model": self.model,
@@ -186,8 +229,14 @@ class LLMService:
         }
 
         response = self.client.chat.completions.create(**kwargs)
+        content = response.choices[0].message.content
 
-        return response.choices[0].message.content.strip()
+        # Check if content is None or empty
+        if not content:
+            logger.warning("Received empty response from OpenAI API")
+            raise ValueError("Empty response from OpenAI API")
+
+        return content.strip()
 
     def generate_structured_response_from_llm_messages(
         self,
@@ -210,7 +259,14 @@ class LLMService:
         """
         try:
             # Convert LLMMessage objects to dictionaries for OpenAI API
-            message_dicts = [message.to_dict() for message in messages]
+            # Filter out any messages with empty content
+            valid_messages = [msg for msg in messages if msg.content and msg.content.strip()]
+
+            if not valid_messages:
+                logger.error("No valid messages found after filtering empty content")
+                raise ValueError("No valid messages to send to OpenAI API")
+
+            message_dicts = [message.to_dict() for message in valid_messages]
 
             kwargs = {
                 "model": self.model,
@@ -227,14 +283,33 @@ class LLMService:
                 }
             }
 
+            logger.debug(f"Making OpenAI API call with {len(message_dicts)} messages")
             response = self.client.chat.completions.create(**kwargs)
-            content = response.choices[0].message.content.strip()
+            logger.debug(f"Received response with {len(response.choices)} choices")
+            content = response.choices[0].message.content
+
+            # Check if content is None or empty
+            if not content:
+                logger.warning("Received empty response from OpenAI API")
+                raise ValueError("Empty response from OpenAI API")
+
+            content = content.strip()
+
+            # Check if content is still empty after stripping
+            if not content:
+                logger.warning("Received whitespace-only response from OpenAI API")
+                raise ValueError("Whitespace-only response from OpenAI API")
 
             # Parse and return the structured response
             return json.loads(content)
 
         except Exception as e:
             logger.error(f"Error generating conversation structured response: {e}")
+            logger.error(f"Error type: {type(e).__name__}")
+
+            # Log additional context for debugging
+            logger.error(f"Full error details: {str(e)}")
+
             # Fallback to regular completion with JSON instruction in prompt
             logger.info("Falling back to regular completion with JSON instruction")
             try:
@@ -246,10 +321,13 @@ class LLMService:
                     temperature=temperature,
                     max_tokens=max_tokens
                 )
+                logger.info(f"Fallback response received: {len(fallback_response)} characters")
                 return self.parse_json_response(fallback_response)
             except Exception as fallback_error:
                 logger.error(f"Fallback also failed: {fallback_error}")
+                logger.error(f"Fallback error type: {type(fallback_error).__name__}")
                 # Return a safe default response that matches the expected schema
+                logger.info("Returning safe default response")
                 return {
                     "response": "I'm sorry, I'm having trouble responding right now. Could you try again?",
                     "follow_up_questions": []

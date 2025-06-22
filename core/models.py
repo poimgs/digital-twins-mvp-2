@@ -271,16 +271,26 @@ class LLMMessage:
     content: str
 
     def __post_init__(self):
-        """Validate role after initialization."""
+        """Validate role and content after initialization."""
         if self.role not in ['system', 'user', 'assistant']:
             raise ValueError("Role must be 'system', 'user', or 'assistant'")
+
+        # Ensure content is not None and is a string
+        if self.content is None:
+            self.content = ""
+        elif not isinstance(self.content, str):
+            self.content = str(self.content)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'LLMMessage':
         """Create an LLMMessage instance from a dictionary."""
+        content = data.get('content', '')
+        # Handle None content from database
+        if content is None:
+            content = ''
         return cls(
             role=data.get('role', 'user'),
-            content=data.get('content', '')
+            content=content
         )
 
     def to_dict(self) -> Dict[str, str]:
@@ -345,9 +355,11 @@ class ConversationMessage:
 
     def to_llm_message(self) -> LLMMessage:
         """Convert ConversationMessage to LLM service message format."""
+        # Ensure content is not empty
+        content = self.content if self.content else ""
         return LLMMessage(
             role=self.role,
-            content=self.content
+            content=content
         )
 
 
