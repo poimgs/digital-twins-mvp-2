@@ -64,8 +64,6 @@ class TelegramDigitalTwin:
             self.bot_info = supabase_client.get_bot_by_id(self.bot_id)
             if not self.bot_info:
                 raise ValueError(f"Bot with ID {self.bot_id} not found")
-            if not self.bot_info.is_active:
-                raise ValueError(f"Bot {self.bot_info.name} is not active")
             logger.info(f"Loaded bot: {self.bot_info.name}")
         except Exception as e:
             logger.error(f"Error loading bot information: {e}")

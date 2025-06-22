@@ -28,28 +28,6 @@ class SupabaseClient:
         
         self.client: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
-    # Bot operations
-    def get_bots(self, active_only: bool = True) -> List[Bot]:
-        """
-        Retrieve all bots from the database.
-
-        Args:
-            active_only: If True, only return active bots
-
-        Returns:
-            List of Bot instances
-        """
-        try:
-            query = self.client.table("bots").select("*")
-            if active_only:
-                query = query.eq("is_active", True)
-
-            result = query.execute()
-            return bots_from_dict_list(result.data)
-        except Exception as e:
-            logger.error(f"Error retrieving bots: {e}")
-            raise
-
     def get_bot_by_id(self, bot_id: str) -> Optional[Bot]:
         """
         Retrieve a bot by its ID.

@@ -18,7 +18,6 @@ class Bot:
     description: Optional[str] = None
     welcome_message: str = ""
     call_to_action: str = ""
-    is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -47,7 +46,6 @@ class Bot:
             description=data.get('description'),
             welcome_message=data.get('welcome_message', ''),
             call_to_action=data.get('call_to_action', ''),
-            is_active=data.get('is_active', True),
             created_at=created_at,
             updated_at=updated_at
         )
@@ -60,7 +58,6 @@ class Bot:
             'description': self.description,
             'welcome_message': self.welcome_message,
             'call_to_action': self.call_to_action,
-            'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
