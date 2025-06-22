@@ -55,6 +55,42 @@ narrative-digital-twin/
    python telegram_app/telegram_bot.py <bot_id> <telegram_bot_token>
    ```
 
+5. **Telegram Bot Management Script**
+
+   Use the provided script to easily start and stop multiple Telegram bots:
+
+   ```bash
+   # Make the script executable (run once)
+   chmod +x scripts/telegram_bots.sh
+
+   # Start both bots
+   ./scripts/telegram_bots.sh start \
+     <bot_id_1> <telegram_bot_token_1> \
+     <bot_id_2> <telegram_bot_token_2>
+
+   # Stop both bots (no credentials needed)
+   ./scripts/telegram_bots.sh stop
+
+   # Check status
+   ./scripts/telegram_bots.sh status
+   ```
+
+   **Available Commands:**
+
+   - `start` - Start both bots (requires credentials)
+   - `stop` - Stop both bots
+   - `restart` - Restart both bots (requires credentials)
+   - `status` - Show bot status
+
+   **Log Files:**
+
+   - Rickshaw Coffee bot: `logs/rickshaw_bot.log`
+   - Metro Farm bot: `logs/metro_bot.log`
+
+   ```
+
+   ```
+
 ## Features
 
 - **Multi-Bot Support**: Create and manage multiple digital twins
