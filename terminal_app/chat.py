@@ -147,6 +147,10 @@ class ChatInterface:
                 # Display response
                 print(f"\n{self.bot_info.name}: {response.response}")
 
+                # Display call to action if provided
+                if response.call_to_action:
+                    print(f"\n🎯 {response.call_to_action}")
+
                 # Display follow-up questions if available
                 if response.follow_up_questions:
                     print("\n💡 You might also ask:")

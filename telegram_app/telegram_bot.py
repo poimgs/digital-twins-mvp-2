@@ -161,6 +161,10 @@ class TelegramDigitalTwin:
             # Send the main response
             await update.message.reply_text(response.response)
 
+            # Send call to action if provided
+            if response.call_to_action:
+                await update.message.reply_text(f"🎯 {response.call_to_action}")
+
             # Send follow-up questions as inline keyboard if available
             if response.follow_up_questions:
                 await self._send_follow_up_questions(update, response.follow_up_questions)
@@ -259,6 +263,10 @@ class TelegramDigitalTwin:
 
                             # Send the response
                             await context.bot.send_message(chat_id=chat_id, text=response.response)
+
+                            # Send call to action if provided
+                            if response.call_to_action:
+                                await context.bot.send_message(chat_id=chat_id, text=f"🎯 {response.call_to_action}")
 
                             # Send new follow-up questions if available
                             if response.follow_up_questions:

@@ -28,6 +28,12 @@ class ConversationalEngine:
         self.conversations: Dict[str, ConversationManager] = {}  # chat_id -> ConversationManager
         self.story_retrieval_manager = StoryRetrievalManager()
         self.bot_personality: str = self.get_bot_personality_summary()
+        
+        # Get bot call to action
+        bot = supabase_client.get_bot_by_id(bot_id)
+        if not bot:
+            raise ValueError(f"Bot with ID {bot_id} not found")
+        self.call_to_action = bot.call_to_action
 
     def get_bot_personality_summary(self) -> str:
         """Get or create personality summary for a bot."""
@@ -112,8 +118,6 @@ COMMUNICATION STYLE & VOICE:
 
             conversation_history = conversation_manager.get_conversation_history_for_llm()
 
-            # Note: Bot information can be used for welcome message and call to action logic
-
             system_prompt = f"""You are a digital twin created from personal stories and experiences.
 Respond as if you are the person whose stories were analyzed, maintaining their personality, communication style, and emotional patterns.
 Use the conversation context to provide natural, contextually-aware responses that build on the ongoing dialogue.
@@ -161,15 +165,35 @@ SUMMARY OF ALL STORIES:
 
             response = llm_service.generate_structured_response_from_llm_messages(
                 messages=messages,
-                schema=schema,
-                max_tokens=500
+                schema=schema
             )
 
             # Ensure response has required fields with defaults
             response_text = response.get("response", "I'm sorry, I'm having trouble responding right now. Could you try again?")
             follow_up_questions = response.get("follow_up_questions", [])
 
-            conversation_response = ConversationResponse(response_text, follow_up_questions)
+            # Use LLM judge to determine if call to action should be shown
+            call_to_action = None
+            if not conversation_manager.call_to_action_shown:
+                should_show_cta = self._should_show_call_to_action(
+                    conversation_manager=conversation_manager,
+                    user_message=user_message,
+                    bot_response=response_text,
+                    bot_call_to_action=self.call_to_action
+                )
+
+                if should_show_cta:
+                    call_to_action = self.call_to_action
+                    try:
+                        supabase_client.update_conversation_state(
+                            chat_id=final_chat_id,
+                            call_to_action_shown=True
+                        )
+                        conversation_manager.call_to_action_shown = True
+                    except Exception as e:
+                        logger.error(f"Error updating call_to_action_shown state: {e}")
+
+            conversation_response = ConversationResponse(response_text, follow_up_questions, call_to_action)
 
             conversation_manager.add_assistant_message(conversation_response.response)
             conversation_manager.summarize_conversation(user_message, conversation_response.response)
@@ -180,6 +204,86 @@ SUMMARY OF ALL STORIES:
         except Exception as e:
             logger.error(f"Error generating response: {e}")
             return ConversationResponse("I'm sorry, I'm having trouble responding right now. Could you try again?", [])
+
+    def _should_show_call_to_action(
+        self,
+        conversation_manager,
+        user_message: str,
+        bot_response: str,
+        bot_call_to_action: str
+    ) -> bool:
+        """
+        Use an LLM judge to determine if the call to action should be shown.
+
+        Args:
+            conversation_manager: The conversation manager instance
+            user_message: The user's latest message
+            bot_response: The bot's response to the user
+            bot_call_to_action: The bot's call to action text
+
+        Returns:
+            True if the call to action should be shown, False otherwise
+        """
+        try:
+            # Get conversation history for context
+            conversation_history = conversation_manager.get_conversation_history_for_llm(max_messages=6)
+
+            # Build conversation context for the judge
+            conversation_context = ""
+            for msg in conversation_history:
+                role_label = "User" if msg.role == "user" else "Assistant"
+                conversation_context += f"{role_label}: {msg.content}\n"
+
+            # Add the current exchange
+            conversation_context += f"User: {user_message}\n"
+            conversation_context += f"Assistant: {bot_response}\n"
+
+            system_prompt = """You are an expert judge for determining when to show a call to action in a conversation.
+
+Your task is to analyze the conversation flow and determine if this is an appropriate moment to share the bot's call to action.
+
+Consider these factors:
+1. RAPPORT & TRUST: Has enough rapport been built between the user and bot?
+2. ENGAGEMENT: Is the user actively engaged and asking meaningful questions?
+3. VALUE PROVIDED: Has the bot shared valuable insights, stories, or information?
+4. NATURAL TIMING: Would sharing the call to action feel natural and not forced?
+5. CONVERSATION DEPTH: Has the conversation moved beyond surface-level exchanges?
+6. USER INTEREST: Does the user seem genuinely interested in learning more?
+
+Guidelines:
+- DO show CTA if: Strong rapport, high engagement, valuable exchange, natural flow
+- DON'T show CTA if: Early conversation, low engagement, forced timing, superficial interaction
+- Consider the overall conversation arc, not just the latest exchange
+
+Respond with only "YES" or "NO"."""
+
+            user_prompt = f"""Conversation so far:
+{conversation_context}
+
+Call to action to potentially share: "{bot_call_to_action}"
+
+Conversation summary: {conversation_manager.summary}
+
+Should the call to action be shown now?"""
+
+            # Get judge decision
+            judge_response = llm_service.generate_completion(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=10
+            )
+
+            # Parse the response
+            decision = judge_response.strip().upper()
+            should_show = decision == "YES"
+
+            logger.info(f"CTA Judge decision: {decision} (should_show: {should_show})")
+            return should_show
+
+        except Exception as e:
+            logger.error(f"Error in CTA judge: {e}")
+            # Default to not showing CTA if there's an error
+            return False
 
     def reset_conversation(self, bot_id: str, chat_id: Optional[str] = None, telegram_chat_id: Optional[int] = None) -> bool:
         """
@@ -202,10 +306,9 @@ SUMMARY OF ALL STORIES:
             else:
                 final_chat_id = generate_terminal_chat_id(bot_id)
 
+            conversation_manager = self.get_or_create_conversation_manager(final_chat_id, bot_id)
             if final_chat_id in self.conversations:
                 del self.conversations[final_chat_id]
-
-            conversation_manager = self.get_or_create_conversation_manager(final_chat_id, bot_id)
             logger.info(f"Reset conversation state for chat {final_chat_id}")
             conversation_manager.reset_conversation()
             return True
