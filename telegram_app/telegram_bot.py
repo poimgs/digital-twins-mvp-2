@@ -88,21 +88,17 @@ class TelegramDigitalTwin:
             await update.message.reply_text("❌ Bot configuration error. Please contact support.")
             return
         
-        welcome_text = f"🤖 **{self.bot_info.name}**\n\n{self.bot_info.welcome_message}"
-        await update.message.reply_text(welcome_text, parse_mode='Markdown')
+        welcome_text = f"{self.bot_info.welcome_message}"
+        await update.message.reply_text(welcome_text)
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command."""
-        help_text = """
-🤖 **Digital Twin Bot Commands**
-
+        help_text = f"""
 /start - Get welcome message and introduction
 /help - Show this help message
 /reset - Reset conversation history
-
-Just send me a message to start chatting! I'll respond based on my personality and experiences.
-        """
-        await update.message.reply_text(help_text.strip(), parse_mode='Markdown')
+"""
+        await update.message.reply_text(help_text.strip())
     
     async def reset_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /reset command."""
