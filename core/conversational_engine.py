@@ -154,7 +154,7 @@ SUMMARY OF ALL STORIES:
                     }
                 },
                 "required": ["response", "follow_up_questions"],
-                "additionalProperties": "false"
+                "additionalProperties": False
             }
 
             response = llm_service.generate_structured_response_from_llm_messages(

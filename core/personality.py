@@ -112,7 +112,7 @@ Read all the provided stories and synthesize your findings to answer the followi
                     "emotional_expression",
                     "storytelling_style"
                 ],
-                "additionalProperties": "false"
+                "additionalProperties": False
             }
 
             # Generate personality profile using structured response

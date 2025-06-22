@@ -157,6 +157,7 @@ class StoryAnalysis:
         return cls(
             id=analysis_id,
             story_id=story_id,
+            summary=data.get('summary', ''),
             triggers=data.get('triggers', []),
             emotions=data.get('emotions', []),
             thoughts=data.get('thoughts', []),
@@ -169,6 +170,7 @@ class StoryAnalysis:
         return {
             'id': str(self.id),
             'story_id': str(self.story_id),
+            'summary': self.summary,
             'triggers': self.triggers,
             'emotions': self.emotions,
             'thoughts': self.thoughts,

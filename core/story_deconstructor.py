@@ -45,7 +45,7 @@ class StoryDeconstructor:
                 "required": [
                     "triggers"
                 ],
-                "additionalProperties": "false"
+                "additionalProperties": False
             }
 
             # Use structured response with trigger schema
@@ -88,7 +88,7 @@ class StoryDeconstructor:
                 "required": [
                     "emotions"
                 ],
-                "additionalProperties": "false"
+                "additionalProperties": False
             }
 
             # Use structured response with feelings schema
@@ -129,7 +129,7 @@ class StoryDeconstructor:
                     }
                 },
                 "required": ["thoughts"],
-                "additionalProperties": "false"
+                "additionalProperties": False
             }
 
             # Use structured response with thought schema
@@ -181,7 +181,7 @@ class StoryDeconstructor:
                     }
                 },
                 "required": ["values"],
-                "additionalProperties": "false"
+                "additionalProperties": False
             }
 
             # Use structured response with value analysis schema
