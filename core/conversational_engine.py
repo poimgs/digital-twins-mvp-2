@@ -118,9 +118,9 @@ COMMUNICATION STYLE & VOICE:
 
             conversation_history = conversation_manager.get_conversation_history_for_llm()
 
-            # Prepare call to action context for natural integration
+            # Prepare call to action context for natural integration after 5 turns
             cta_context = ""
-            if not conversation_manager.call_to_action_shown:
+            if not conversation_manager.call_to_action_shown and len(conversation_history) >= 10:
                 cta_context = f"""
 CALL TO ACTION GUIDANCE:
 You have a call to action available: "{self.call_to_action}"
@@ -139,6 +139,9 @@ Respond as if you are the person whose stories were analyzed, maintaining their 
 Use the conversation context to provide natural, contextually-aware responses that build on the ongoing dialogue.
 
 Ensure that you keep your response to the user's message brief and to the point. Do not ask a question back to the user, and focus on sharing stories.
+
+If the conversation is moving away from stories and experiences, guide the conversation back to share stories and insights.
+Do not deviate away from personal stories and experiences.
 
 From the story summaries provided, also provide recommended questions for users to ask.
 
