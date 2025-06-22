@@ -228,8 +228,6 @@ class TelegramDigitalTwin:
                 logger.warning("Received callback query handler call without callback query")
                 return
 
-            await query.answer()
-
             # Parse callback data
             if query.data and query.data.startswith("followup_"):
                 parts = query.data.split("_")
@@ -242,6 +240,9 @@ class TelegramDigitalTwin:
                         questions = self.follow_up_questions[chat_id]
                         if 0 <= question_index < len(questions):
                             selected_question = questions[question_index]
+
+                            # Answer the callback query first
+                            await query.answer()
 
                             # Remove the inline keyboard
                             await query.edit_message_text("💡 You asked: " + selected_question)
@@ -264,12 +265,30 @@ class TelegramDigitalTwin:
                                 await self._send_follow_up_questions_direct(
                                     context, chat_id, response.follow_up_questions
                                 )
-
-                            # Clean up stored questions
-                            del self.follow_up_questions[chat_id]
+                                
+                            # Replace follow-up questions with new questions
+                            self.follow_up_questions[chat_id] = response.follow_up_questions
+                        else:
+                            # Invalid question index
+                            await query.answer("❌ Invalid question selection.")
+                    else:
+                        # Questions no longer available (already processed or expired)
+                        await query.answer("⚠️ This question has already been processed.")
+                else:
+                    # Invalid callback data format (old format or malformed)
+                    await query.answer("⚠️ This question has already been processed.")
+            else:
+                # Unknown callback data
+                await query.answer("❌ Unknown action.")
 
         except Exception as e:
             logger.error(f"Error handling callback query: {e}")
+            # Answer the callback query to prevent loading state
+            try:
+                if query:
+                    await query.answer("❌ Sorry, I encountered an error.")
+            except:
+                pass
             # Use context.bot.send_message instead of query.message.reply_text for safety
             if update.effective_chat:
                 await context.bot.send_message(

@@ -237,15 +237,23 @@ class LLMService:
             logger.error(f"Error generating conversation structured response: {e}")
             # Fallback to regular completion with JSON instruction in prompt
             logger.info("Falling back to regular completion with JSON instruction")
-            fallback_system_prompt = f"{messages[0].content}\n\nIMPORTANT: Respond with valid JSON only."
-            fallback_user_prompt = messages[-1].content if len(messages) > 1 else ""
-            fallback_response = self.generate_completion(
-                system_prompt=fallback_system_prompt,
-                user_prompt=fallback_user_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-            return self.parse_json_response(fallback_response)
+            try:
+                fallback_system_prompt = f"{messages[0].content}\n\nIMPORTANT: Respond with valid JSON only. The JSON must include 'response' and 'follow_up_questions' fields."
+                fallback_user_prompt = messages[-1].content if len(messages) > 1 else ""
+                fallback_response = self.generate_completion(
+                    system_prompt=fallback_system_prompt,
+                    user_prompt=fallback_user_prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                return self.parse_json_response(fallback_response)
+            except Exception as fallback_error:
+                logger.error(f"Fallback also failed: {fallback_error}")
+                # Return a safe default response that matches the expected schema
+                return {
+                    "response": "I'm sorry, I'm having trouble responding right now. Could you try again?",
+                    "follow_up_questions": []
+                }
 
 # Global LLM service instance
 llm_service = LLMService()

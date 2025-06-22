@@ -118,6 +118,8 @@ COMMUNICATION STYLE & VOICE:
 Respond as if you are the person whose stories were analyzed, maintaining their personality, communication style, and emotional patterns.
 Use the conversation context to provide natural, contextually-aware responses that build on the ongoing dialogue.
 
+Ensure that you keep your response to the user's message brief and to the point. Do not ask a question back to the user, and focus on sharing stories.
+
 From the story summaries provided, also provide recommended questions for users to ask.
 
 CONVERSATION CONTEXT:
@@ -159,10 +161,15 @@ SUMMARY OF ALL STORIES:
 
             response = llm_service.generate_structured_response_from_llm_messages(
                 messages=messages,
-                schema=schema
+                schema=schema,
+                max_tokens=500
             )
-            
-            conversation_response = ConversationResponse(response["response"], response["follow_up_questions"])
+
+            # Ensure response has required fields with defaults
+            response_text = response.get("response", "I'm sorry, I'm having trouble responding right now. Could you try again?")
+            follow_up_questions = response.get("follow_up_questions", [])
+
+            conversation_response = ConversationResponse(response_text, follow_up_questions)
 
             conversation_manager.add_assistant_message(conversation_response.response)
             conversation_manager.summarize_conversation(user_message, conversation_response.response)
