@@ -139,11 +139,24 @@ class LLMService:
             Parsed JSON as a dictionary
         """
         try:
+            # First try to parse as-is
             return json.loads(response)
-        except json.JSONDecodeError as e:
-            logger.error(f"Error parsing JSON response: {e}")
-            logger.error(f"Response content: {response}")
-            raise ValueError(f"Invalid JSON response: {e}")
+        except json.JSONDecodeError:
+            # If that fails, try to extract JSON from markdown code blocks
+            try:
+                # Look for JSON wrapped in markdown code blocks
+                import re
+                json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response, re.DOTALL)
+                if json_match:
+                    json_content = json_match.group(1).strip()
+                    return json.loads(json_content)
+                else:
+                    # If no markdown blocks found, try to parse the response directly
+                    raise json.JSONDecodeError("No JSON found", response, 0)
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing JSON response: {e}")
+                logger.error(f"Response content: {response}")
+                raise ValueError(f"Invalid JSON response: {e}")
 
     def generate_completion_from_llm_messages(
         self,
@@ -162,9 +175,12 @@ class LLMService:
         Returns:
             The generated response text
         """
+        # Convert LLMMessage objects to dictionaries for OpenAI API
+        message_dicts = [message.to_dict() for message in messages]
+
         kwargs = {
             "model": self.model,
-            "messages": messages,
+            "messages": message_dicts,
             "temperature": temperature or self.temperature,
             "max_tokens": max_tokens or self.max_tokens
         }
@@ -193,9 +209,12 @@ class LLMService:
             The parsed JSON response matching the schema
         """
         try:
+            # Convert LLMMessage objects to dictionaries for OpenAI API
+            message_dicts = [message.to_dict() for message in messages]
+
             kwargs = {
                 "model": self.model,
-                "messages": messages,
+                "messages": message_dicts,
                 "temperature": temperature or self.temperature,
                 "max_tokens": max_tokens or self.max_tokens,
                 "response_format": {
