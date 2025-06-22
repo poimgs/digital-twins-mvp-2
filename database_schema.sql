@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS bots (
     description TEXT,
     welcome_message TEXT NOT NULL,
     call_to_action TEXT NOT NULL,
-    personality_profile_id UUID,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
