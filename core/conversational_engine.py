@@ -227,6 +227,14 @@ Bot: {bot_response}
                 final_chat_id = generate_terminal_chat_id(bot_id)
 
             conversation_manager = self.get_or_create_conversation_manager(final_chat_id, bot_id)
+
+            # Check if call to action has already been shown - if so, end conversation
+            if conversation_manager.call_to_action_shown:
+                reset_message = ("Thank you for our conversation! I've shared what I wanted to share with you. "
+                               "If you'd like to start a new conversation, please use the reset command "
+                               "(/reset for Telegram or 'clear' for terminal).")
+                return ConversationResponse(reset_message, [])
+
             conversation_manager.add_user_message(user_message)
 
             # Get bot-specific stories
@@ -241,23 +249,25 @@ Bot: {bot_response}
             cta_context = ""
             if not conversation_manager.call_to_action_shown and conversation_manager.ready_for_call_to_action():
                 cta_context = f"""
-CALL TO ACTION GUIDANCE:
+CALL TO ACTION GUIDANCE - MANDATORY:
 
-Naturally incorporate this call to action into your response. 
+You MUST incorporate this call to action into your response and end the conversation:
 {self.call_to_action}
 
-The user has demonstrated:
-- Deep engagement through higher-level questions and interactions
-- Sustained interest across multiple interactions
-- Readiness for more meaningful connection
+IMPORTANT REQUIREMENTS:
+- Include the call to action naturally in your response
+- Make it clear this is the end of our conversation
+- Express gratitude for the engaging dialogue
+- Do NOT ask follow-up questions or invite further conversation
+- End with a sense of closure and completion
 
-Weave the call to action naturally into your response style."""
+The user has demonstrated deep engagement and is ready for the next step. This is your opportunity to share what you wanted to share and gracefully conclude our interaction."""
 
             system_prompt = f"""You are a digital twin created from personal stories and experiences.
 Respond as if you are the person whose stories were analyzed, maintaining their personality, communication style, and emotional patterns.
 Use the conversation context to provide natural, contextually-aware responses that build on the ongoing dialogue.
 
-Ensure that you keep your response to the user's message brief and to the point. Do not ask a question back to the user, and focus on sharing stories.
+Ensure that you keep your response to the user's message brief and to the point. Focus on sharing stories and personal insights.
 
 If the conversation is moving away from stories and experiences, guide the conversation back to share stories and insights.
 Do not deviate away from personal stories and experiences.
@@ -298,6 +308,7 @@ PERSONALITY PROFILE:
 
             # Check if the LLM naturally included the call to action in the response
             # If so, mark it as shown to prevent future prompting
+            cta_detected = False
             if not conversation_manager.call_to_action_shown:
                 response_lower = response.lower()
                 cta_mentioned = False
@@ -313,11 +324,15 @@ PERSONALITY PROFILE:
                             call_to_action_shown=True
                         )
                         conversation_manager.call_to_action_shown = True
+                        cta_detected = True
                         logger.info(f"CTA detected in response and marked as shown")
                     except Exception as e:
                         logger.error(f"Error updating call_to_action_shown state: {e}")
 
-            conversation_response = ConversationResponse(response, follow_up_questions)
+            # If call to action was just detected, don't provide follow-up questions
+            # as this marks the end of the conversation
+            final_follow_up_questions = [] if cta_detected else follow_up_questions
+            conversation_response = ConversationResponse(response, final_follow_up_questions)
 
             conversation_manager.add_assistant_message(conversation_response.response)
             conversation_manager.summarize_conversation(user_message, conversation_response.response)

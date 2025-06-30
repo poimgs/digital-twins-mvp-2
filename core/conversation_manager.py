@@ -278,7 +278,7 @@ LLM response: {llm_response}"""
         Returns:
             True if ready for call to action, False otherwise
         """
-        return self.max_warmth_achieved.value >= WarmthLevel.WILL.value  # Will/Would/Might level questions
+        return self.max_warmth_achieved.value >= WarmthLevel.MIGHT.value 
 
     def get_next_question_guidance(self) -> str:
         """
