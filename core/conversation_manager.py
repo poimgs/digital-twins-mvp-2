@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
 from uuid import UUID
-from core.models import ConversationMessage, LLMMessage, ConversationState, StoryWithAnalysis
+from core.models import ConversationMessage, LLMMessage, ConversationState, StoryWithAnalysis, WarmthLevel
 from core.story_retrieval_manager import StoryRetrievalManager
 
 logger = logging.getLogger(__name__)
@@ -29,10 +29,14 @@ class ConversationManager:
             if state:
                 self.summary = state.summary
                 self.call_to_action_shown = state.call_to_action_shown
+                self.current_warmth_level = WarmthLevel(state.current_warmth_level)
+                self.max_warmth_achieved = WarmthLevel(state.max_warmth_achieved)
             else:
                 # Initialize with defaults and create in database
                 self.summary = ""
                 self.call_to_action_shown = False
+                self.current_warmth_level = WarmthLevel.IS
+                self.max_warmth_achieved = WarmthLevel.IS
 
                 # Create initial state in database
                 initial_state = ConversationState(
@@ -40,6 +44,8 @@ class ConversationManager:
                     bot_id=self.bot_id,
                     summary=self.summary,
                     call_to_action_shown=self.call_to_action_shown,
+                    current_warmth_level=self.current_warmth_level.value,
+                    max_warmth_achieved=self.max_warmth_achieved.value,
                     created_at=datetime.now(timezone.utc),
                     updated_at=datetime.now(timezone.utc)
                 )
@@ -49,6 +55,8 @@ class ConversationManager:
             # Fall back to defaults
             self.summary = ""
             self.call_to_action_shown = False
+            self.current_warmth_level = WarmthLevel.IS
+            self.max_warmth_achieved = WarmthLevel.IS
 
     def summarize_conversation(self, user_message: str, llm_response: str) -> str:
         """
@@ -116,6 +124,7 @@ LLM response: {llm_response}"""
 
         try:
             supabase_client.insert_conversation_message(message)
+            self.update_warmth_level()
         except Exception as e:
             logger.error(f"Error storing user message: {e}")
 
@@ -186,6 +195,163 @@ LLM response: {llm_response}"""
             logger.error(f"Error finding relevant stories: {e}")
             return None
         
+    def analyze_message_warmth_regex(self, message: str) -> int:
+        """
+        Analyze a message using regex patterns to determine warmth level for warmth measurement.
+        This is faster and more reliable than LLM analysis for basic patterns.
+
+        Args:
+            message: The message to analyze
+
+        Returns:
+            Warmth level
+        """
+        import re
+
+        message_lower = message.lower().strip()
+        complexity = 1
+
+        # Pattern matching for warmth levels (ordered from most to least specific)
+        if re.search(r'\bmight\b.*\?|\bmight\s+\w+.*\?|might.*be.*possible', message_lower):
+            complexity = 6
+        elif re.search(r'\bwould\b.*\?|\bwould\s+you.*\?|would.*consider|would.*think', message_lower):
+            complexity = 5
+        elif re.search(r'\bwill\b.*\?|\bwill\s+you.*\?|will.*happen|will.*do', message_lower):
+            complexity = 4
+        elif re.search(r'\bcan\b.*\?|\bcan\s+you.*\?|can.*help|can.*tell|able to', message_lower):
+            complexity = 3
+        elif re.search(r'\bdid\b.*\?|\bdid\s+you.*\?|did.*happen|did.*feel|have you', message_lower):
+            complexity = 2
+        elif re.search(r'\bis\b.*\?|\bis\s+this.*\?|is.*true|are you|are there', message_lower):
+            complexity = 1
+        # For non-questions, analyze engagement level
+        elif any(word in message_lower for word in ['tell me more', 'explain', 'describe', 'share']):
+            complexity = 3  # Requesting capability
+        elif any(word in message_lower for word in ['think', 'feel', 'believe', 'opinion']):
+            complexity = 5  # Hypothetical/opinion seeking
+        elif any(word in message_lower for word in ['interesting', 'fascinating', 'wow', 'amazing']):
+            complexity = 2  # Engaging with past content
+
+        return complexity
+
+    def analyze_conversation_warmth(self, recent_messages_limit: int = 3) -> int:
+        """
+        Analyze the warmth level based on the last X messages
+
+        Args:
+            recent_messages_limit: Number of recent messages to analyze
+
+        Returns:
+            Warmth level
+        """
+        try:
+            # Get recent conversation history
+            recent_messages = supabase_client.get_conversation_history(
+                chat_id=self.chat_id,
+                limit=recent_messages_limit
+            )
+
+            # Filter for user messages only
+            user_messages = [msg for msg in recent_messages if msg.role == 'user']
+
+            if not user_messages:
+                return 1
+            # Analyze each message and calculate weighted average
+            total_warmth_level = 0
+            total_weight = 0
+
+            for i, message in enumerate(reversed(user_messages)):  # Most recent first
+                weight = recent_messages_limit - i  # More recent messages have higher weight
+                warmth_level = self.analyze_message_warmth_regex(message.content)
+                total_warmth_level += warmth_level * weight
+                total_weight += weight
+
+            # Calculate weighted average warmth level
+            weighted_warmth = total_warmth_level / total_weight
+            return round(weighted_warmth)
+
+        except Exception as e:
+            logger.error(f"Error analyzing conversation warmth: {e}")
+            return 1
+
+    def update_warmth_level(self):
+        """
+        Update the conversation warmth level based on recent conversation context.
+        """
+        try:
+            # Analyze recent conversation context
+            new_warmth_level = WarmthLevel(self.analyze_conversation_warmth(recent_messages_limit=5))
+
+            # Update warmth tracking
+            self.current_warmth_level = new_warmth_level
+
+            # Update max warmth achieved if this is higher
+            if new_warmth_level.value > self.max_warmth_achieved.value:
+                self.max_warmth_achieved = new_warmth_level
+
+            # Persist to database
+            supabase_client.update_conversation_state(
+                chat_id=self.chat_id,
+                current_warmth_level=self.current_warmth_level.value,
+                max_warmth_achieved=self.max_warmth_achieved.value
+            )
+
+            logger.info(f"Updated warmth level to {new_warmth_level} (max: {self.max_warmth_achieved})")
+
+        except Exception as e:
+            logger.error(f"Error updating warmth level: {e}")
+
+    def get_current_warmth_level(self) -> WarmthLevel:
+        """
+        Get the current warmth level for the conversation.
+
+        Returns:
+            Current warmth level
+        """
+        return self.current_warmth_level
+
+    def ready_for_call_to_action(self) -> bool:
+        """
+        Check if the conversation is ready for call to action based on current warmth level.
+
+        Returns:
+            True if ready for call to action, False otherwise
+        """
+        return self.max_warmth_achieved.value >= WarmthLevel.WILL.value  # Will/Would/Might level questions
+
+    def get_next_question_guidance(self) -> str:
+        """
+        Get guidance for the LLM on what type of question to ask next based on current warmth level.
+
+        Returns:
+            String guidance for the LLM
+        """
+        current_level = self.current_warmth_level.value
+        max_level = self.max_warmth_achieved.value
+
+        # Determine the next appropriate warmth level
+        if max_level < WarmthLevel.WILL.value:  # Haven't reached maximum warmth yet
+            target_level = min(max_level + 1, 6)  # Try to increase warmth gradually
+        else:
+            target_level = max(4, current_level)  # Stay at higher levels once achieved
+
+        warmth_level = WarmthLevel(target_level)
+
+        guidance = f"""Based on the current conversation warmth level ({current_level}/6, max achieved: {max_level}/6),
+consider asking a {warmth_level.get_question_type()} question using '{warmth_level.name}' structure.
+
+Question warmth levels (from simple to complex):
+- 'is' questions: Factual (warmth level 1) - "Is this important to you?"
+- 'did' questions: Historical Factual (warmth level 2) - "Did you experience this before?"
+- 'can' questions: Capability (warmth level 3) - "Can you imagine doing this?"
+- 'will' questions: Intention (warmth level 4) - "Will you consider this approach?"
+- 'would' questions: Hypothetical (warmth level 5) - "Would you be open to exploring this?"
+- 'might' questions: Speculative (warmth level 6) - "Might there be other perspectives on this?"
+
+{f'Ready for call to action - user has shown high engagement!' if max_level >= 4 else 'Continue building warmth before call to action.'}"""
+
+        return guidance
+
     def reset_conversation(self):
         """
         Reset the conversation state for a chat.
@@ -198,6 +364,8 @@ LLM response: {llm_response}"""
             # Reset local state
             self.summary = ""
             self.call_to_action_shown = False
+            self.current_warmth_level = WarmthLevel.IS
+            self.max_warmth_achieved = WarmthLevel.IS
             return True
         except Exception as e:
             logger.error(f"Error resetting conversation: {e}")

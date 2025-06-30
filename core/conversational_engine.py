@@ -119,21 +119,36 @@ COMMUNICATION STYLE & VOICE:
 
             conversation_history = conversation_manager.get_conversation_history_for_llm()
 
-            # Prepare call to action context for natural integration after 5 turns
+            # Get current warmth level and guidance for question warmth level
+            current_warmth_level = conversation_manager.get_current_warmth_level()
+            ready_for_call_to_action = conversation_manager.ready_for_call_to_action()
+            warmth_guidance = conversation_manager.get_next_question_guidance()
+
+            # Prepare call to action context based on warmth level
             cta_context = ""
-            if not conversation_manager.call_to_action_shown and len(conversation_history) >= 10:
-                cta_context = f"""
+            if not conversation_manager.call_to_action_shown:
+                if ready_for_call_to_action:
+                    # User has shown high engagement (warmth level 4+)
+                    cta_context = f"""
 CALL TO ACTION GUIDANCE:
-You have a call to action available: "{self.call_to_action}"
+Current user warmth level: {current_warmth_level.value}/6
+They are ready for your call to action: "{self.call_to_action}"
 
-You may naturally incorporate this call to action into your response if the conversation feels right for it. Consider:
-- Has enough rapport and trust been built?
-- Is the user engaged and showing genuine interest?
-- Would mentioning this feel natural and valuable, not forced or sales-y?
-- Have you shared meaningful insights that connect to this call to action?
+You may naturally incorporate this call to action into your response. The user has demonstrated:
+- Deep engagement through higher-level questions and interactions
+- Sustained interest across multiple interactions
+- Readiness for more meaningful connection
 
-If the timing feels right, weave it naturally into your response. If not, simply respond normally without it.
-The call to action doesn't need to be word-for-word - adapt it to fit naturally into your response style."""
+Weave the call to action naturally into your response style. Don't force it - let it flow from the conversation."""
+                elif len(conversation_history) >= 10:
+                    # Fallback to turn-based logic if warmth isn't high enough
+                    cta_context = f"""
+CALL TO ACTION GUIDANCE:
+Current user warmth level: {current_warmth_level.value}/6
+The user may not be fully warmed up yet, but you have a call to action available: "{self.call_to_action}"
+
+Consider if the conversation feels right for it, but prioritize building more warmth first.
+Focus on deeper engagement before introducing the call to action."""
 
             system_prompt = f"""You are a digital twin created from personal stories and experiences.
 Respond as if you are the person whose stories were analyzed, maintaining their personality, communication style, and emotional patterns.
@@ -145,6 +160,9 @@ If the conversation is moving away from stories and experiences, guide the conve
 Do not deviate away from personal stories and experiences.
 
 From the story summaries provided, also provide recommended questions for users to ask.
+
+WARMTH GUIDANCE FOR FOLLOW-UP QUESTIONS:
+{warmth_guidance}
 
 {cta_context}
 

@@ -5,6 +5,7 @@ Provides type-safe data structures for all database operations.
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Dict, Any, Optional, List
 from uuid import UUID
 import uuid
@@ -393,6 +394,40 @@ def dict_list_to_llm_messages(data_list: List[Dict[str, str]]) -> List[LLMMessag
     """Convert a list of dictionaries to LLMMessage instances."""
     return [LLMMessage.from_dict(data) for data in data_list]
 
+class WarmthLevel(Enum):
+    IS = 1
+    DID = 2
+    CAN = 3
+    WILL = 4
+    WOULD = 5
+    MIGHT = 6
+
+    @classmethod
+    def from_warmth_level(cls, warmth_level: int) -> 'WarmthLevel':
+        """Get the warmth level for a given warmth level."""
+        return cls(warmth_level)
+
+    @classmethod
+    def get_warmth_level(cls, warmth_level: int) -> int:
+        """Get the warmth level for a given warmth level."""
+        return cls.from_warmth_level(warmth_level).value
+    
+    def get_question_type(self):
+        """Get the question type for a given warmth level."""
+        if self.value == 1:
+            return 'Factual'
+        elif self.value == 2:
+            return 'Historical Factual'
+        elif self.value == 3:
+            return 'Capability'
+        elif self.value == 4:
+            return 'Intention'
+        elif self.value == 5:
+            return 'Hypothetical'
+        elif self.value == 6:
+            return 'Speculative'
+        else:
+            raise ValueError(f"Invalid warmth level: {self.value}")
 
 @dataclass
 class ConversationState:
@@ -403,6 +438,8 @@ class ConversationState:
     bot_id: UUID = field(default_factory=uuid.uuid4)
     summary: str = ""
     call_to_action_shown: bool = False
+    current_warmth_level: int = WarmthLevel.IS.value
+    max_warmth_achieved: int = WarmthLevel.IS.value
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -437,6 +474,8 @@ class ConversationState:
             bot_id=bot_id,
             summary=data.get('summary', ''),
             call_to_action_shown=data.get('call_to_action_shown', False),
+            current_warmth_level=data.get('current_warmth_level', WarmthLevel.IS.value),
+            max_warmth_achieved=data.get('max_warmth_achieved', WarmthLevel.IS.value),
             created_at=created_at,
             updated_at=updated_at
         )
@@ -449,6 +488,8 @@ class ConversationState:
             'bot_id': str(self.bot_id),
             'summary': self.summary,
             'call_to_action_shown': self.call_to_action_shown,
+            'current_warmth_level': self.current_warmth_level,
+            'max_warmth_achieved': self.max_warmth_achieved,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
