@@ -237,6 +237,7 @@ SUMMARY OF ALL STORIES:
 
             conversation_manager.add_assistant_message(conversation_response.response)
             conversation_manager.summarize_conversation(user_message, conversation_response.response)
+            conversation_manager.store_follow_up_questions(follow_up_questions)
 
             # Return comprehensive response data
             return conversation_response

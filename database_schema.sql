@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS conversation_state (
     call_to_action_shown BOOLEAN DEFAULT false,
     current_warmth_level INTEGER DEFAULT 1 CHECK (current_warmth_level >= 1 AND current_warmth_level <= 6),
     max_warmth_achieved INTEGER DEFAULT 1 CHECK (max_warmth_achieved >= 1 AND max_warmth_achieved <= 6),
+    follow_up_questions TEXT[] DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(chat_id, bot_id)

@@ -370,3 +370,60 @@ Question warmth levels (from simple to complex):
         except Exception as e:
             logger.error(f"Error resetting conversation: {e}")
             return False
+
+    def store_follow_up_questions(self, questions: List[str]) -> bool:
+        """
+        Store follow-up questions for the current conversation.
+
+        Args:
+            questions: List of follow-up questions to store
+
+        Returns:
+            True if storage was successful
+        """
+        try:
+            # Update the conversation state with the new follow-up questions
+            supabase_client.update_conversation_state(
+                chat_id=self.chat_id,
+                follow_up_questions=questions
+            )
+            logger.info(f"Stored {len(questions)} follow-up questions for chat {self.chat_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error storing follow-up questions: {e}")
+            return False
+
+    def get_follow_up_questions(self) -> List[str]:
+        """
+        Retrieve follow-up questions for the current conversation.
+
+        Returns:
+            List of follow-up questions, empty list if none found
+        """
+        try:
+            # Get the conversation state which now includes follow-up questions
+            state = supabase_client.get_conversation_state(self.chat_id)
+            if state and state.follow_up_questions:
+                return state.follow_up_questions
+            return []
+        except Exception as e:
+            logger.error(f"Error retrieving follow-up questions: {e}")
+            return []
+
+    def clear_follow_up_questions(self) -> bool:
+        """
+        Clear follow-up questions for the current conversation.
+
+        Returns:
+            True if clearing was successful
+        """
+        try:
+            # Clear follow-up questions by setting them to empty list
+            supabase_client.update_conversation_state(
+                chat_id=self.chat_id,
+                follow_up_questions=[]
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error clearing follow-up questions: {e}")
+            return False

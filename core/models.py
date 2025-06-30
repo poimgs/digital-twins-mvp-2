@@ -440,6 +440,7 @@ class ConversationState:
     call_to_action_shown: bool = False
     current_warmth_level: int = WarmthLevel.IS.value
     max_warmth_achieved: int = WarmthLevel.IS.value
+    follow_up_questions: List[str] = field(default_factory=list)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -476,6 +477,7 @@ class ConversationState:
             call_to_action_shown=data.get('call_to_action_shown', False),
             current_warmth_level=data.get('current_warmth_level', WarmthLevel.IS.value),
             max_warmth_achieved=data.get('max_warmth_achieved', WarmthLevel.IS.value),
+            follow_up_questions=data.get('follow_up_questions', []),
             created_at=created_at,
             updated_at=updated_at
         )
@@ -490,6 +492,7 @@ class ConversationState:
             'call_to_action_shown': self.call_to_action_shown,
             'current_warmth_level': self.current_warmth_level,
             'max_warmth_achieved': self.max_warmth_achieved,
+            'follow_up_questions': self.follow_up_questions,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

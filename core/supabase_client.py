@@ -4,7 +4,7 @@ Handles connection and CRUD operations with the Supabase database.
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from supabase import create_client, Client
 from config.settings import settings
@@ -475,7 +475,8 @@ class SupabaseClient:
         summary: Optional[str] = None,
         call_to_action_shown: Optional[bool] = None,
         current_warmth_level: Optional[int] = None,
-        max_warmth_achieved: Optional[int] = None
+        max_warmth_achieved: Optional[int] = None,
+        follow_up_questions: Optional[List[str]] = None
     ) -> Optional[ConversationState]:
         """
         Update specific fields of conversation state.
@@ -486,13 +487,14 @@ class SupabaseClient:
             call_to_action_shown: Whether call to action has been shown
             current_warmth_level: Current warmth level (1-6)
             max_warmth_achieved: Maximum warmth level achieved (1-6)
+            follow_up_questions: List of follow-up questions
 
         Returns:
             The updated ConversationState instance or None if not found
         """
         try:
             # Build update dictionary with only provided fields
-            update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+            update_data: Dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
 
             if summary is not None:
                 update_data["summary"] = summary
@@ -502,6 +504,8 @@ class SupabaseClient:
                 update_data["current_warmth_level"] = str(current_warmth_level)
             if max_warmth_achieved is not None:
                 update_data["max_warmth_achieved"] = str(max_warmth_achieved)
+            if follow_up_questions is not None:
+                update_data["follow_up_questions"] = follow_up_questions
 
             result = (
                 self.client.table("conversation_state")
@@ -528,10 +532,10 @@ class SupabaseClient:
             True if reset was successful
         """
         try:
-            # Delete conversation history first (less critical)
+            # Delete conversation history first
             history_result = self.client.table("conversation_history").delete().eq("chat_id", chat_id).execute()
 
-            # Delete conversation state second (more critical)
+            # Delete conversation state last
             state_result = self.client.table("conversation_state").delete().eq("chat_id", chat_id).execute()
 
             logger.info(f"Reset conversation {chat_id}: deleted {len(history_result.data) if history_result.data else 0} history records and {len(state_result.data) if state_result.data else 0} state records")

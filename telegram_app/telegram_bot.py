@@ -45,8 +45,7 @@ class TelegramDigitalTwin:
         self.engine = ConversationalEngine(bot_id)
         self.bot_info: Bot = self._load_bot_info()
 
-        # Store follow-up questions temporarily (in production, use Redis or database)
-        self.follow_up_questions = {}
+
 
         # Create Telegram application
         self.application = Application.builder().token(telegram_token).build()
@@ -196,9 +195,6 @@ class TelegramDigitalTwin:
             reply_markup=reply_markup
         )
 
-        # Store questions for callback handling
-        self.follow_up_questions[chat_id] = questions
-
     async def _send_follow_up_questions_direct(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int, questions: list):
         """Send follow-up questions directly using context.bot when we don't have an update.message."""
         if not questions:
@@ -217,9 +213,6 @@ class TelegramDigitalTwin:
             reply_markup=reply_markup
         )
 
-        # Store questions for callback handling
-        self.follow_up_questions[chat_id] = questions
-
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle callback queries from inline keyboard buttons."""
         try:
@@ -235,45 +228,44 @@ class TelegramDigitalTwin:
                     chat_id = int(parts[1])
                     question_index = int(parts[2])
 
-                    # Get stored questions
-                    if chat_id in self.follow_up_questions:
-                        questions = self.follow_up_questions[chat_id]
-                        if 0 <= question_index < len(questions):
-                            selected_question = questions[question_index]
+                    # Get stored questions from conversation manager
+                    from core.conversation_manager import ConversationManager
+                    from core.models import generate_telegram_chat_id
 
-                            # Answer the callback query first
-                            await query.answer()
+                    conversation_chat_id = generate_telegram_chat_id(self.bot_id, chat_id)
+                    conversation_manager = ConversationManager(conversation_chat_id, self.bot_id)
+                    questions = conversation_manager.get_follow_up_questions()
 
-                            # Remove the inline keyboard
-                            await query.edit_message_text("💡 You asked: " + selected_question)
+                    if questions and 0 <= question_index < len(questions):
+                        selected_question = questions[question_index]
 
-                            # Show typing indicator
-                            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+                        # Answer the callback query first
+                        await query.answer()
 
-                            # Generate response for the selected question
-                            response = self.engine.generate_response(
-                                user_message=selected_question,
-                                bot_id=self.bot_id,
-                                telegram_chat_id=chat_id
+                        # Remove the inline keyboard
+                        await query.edit_message_text("💡 You asked: " + selected_question)
+
+                        # Show typing indicator
+                        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+
+                        # Generate response for the selected question
+                        response = self.engine.generate_response(
+                            user_message=selected_question,
+                            bot_id=self.bot_id,
+                            telegram_chat_id=chat_id
+                        )
+
+                        # Send the response (which may naturally include call to action)
+                        await context.bot.send_message(chat_id=chat_id, text=response.response)
+
+                        # Send new follow-up questions if available
+                        if response.follow_up_questions:
+                            await self._send_follow_up_questions_direct(
+                                context, chat_id, response.follow_up_questions
                             )
-
-                            # Send the response (which may naturally include call to action)
-                            await context.bot.send_message(chat_id=chat_id, text=response.response)
-
-                            # Send new follow-up questions if available
-                            if response.follow_up_questions:
-                                await self._send_follow_up_questions_direct(
-                                    context, chat_id, response.follow_up_questions
-                                )
-                                
-                            # Replace follow-up questions with new questions
-                            self.follow_up_questions[chat_id] = response.follow_up_questions
-                        else:
-                            # Invalid question index
-                            await query.answer("❌ Invalid question selection.")
                     else:
-                        # Questions no longer available (already processed or expired)
-                        await query.answer("⚠️ This question has already been processed.")
+                        # Invalid question index or no questions available
+                        await query.answer("⚠️ This question is no longer available.")
                 else:
                     # Invalid callback data format (old format or malformed)
                     await query.answer("⚠️ This question has already been processed.")
