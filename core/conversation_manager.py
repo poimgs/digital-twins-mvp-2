@@ -124,7 +124,8 @@ LLM response: {llm_response}"""
 
         try:
             supabase_client.insert_conversation_message(message)
-            self.update_warmth_level()
+            self.log_warmth_progression(content)  # Log before updating
+            self.update_warmth_level(message)
         except Exception as e:
             logger.error(f"Error storing user message: {e}")
 
@@ -234,53 +235,13 @@ LLM response: {llm_response}"""
 
         return complexity
 
-    def analyze_conversation_warmth(self, recent_messages_limit: int = 3) -> int:
-        """
-        Analyze the warmth level based on the last X messages
-
-        Args:
-            recent_messages_limit: Number of recent messages to analyze
-
-        Returns:
-            Warmth level
-        """
-        try:
-            # Get recent conversation history
-            recent_messages = supabase_client.get_conversation_history(
-                chat_id=self.chat_id,
-                limit=recent_messages_limit
-            )
-
-            # Filter for user messages only
-            user_messages = [msg for msg in recent_messages if msg.role == 'user']
-
-            if not user_messages:
-                return 1
-            # Analyze each message and calculate weighted average
-            total_warmth_level = 0
-            total_weight = 0
-
-            for i, message in enumerate(reversed(user_messages)):  # Most recent first
-                weight = recent_messages_limit - i  # More recent messages have higher weight
-                warmth_level = self.analyze_message_warmth_regex(message.content)
-                total_warmth_level += warmth_level * weight
-                total_weight += weight
-
-            # Calculate weighted average warmth level
-            weighted_warmth = total_warmth_level / total_weight
-            return round(weighted_warmth)
-
-        except Exception as e:
-            logger.error(f"Error analyzing conversation warmth: {e}")
-            return 1
-
-    def update_warmth_level(self):
+    def update_warmth_level(self, message: ConversationMessage):
         """
         Update the conversation warmth level based on recent conversation context.
         """
         try:
-            # Analyze recent conversation context
-            new_warmth_level = WarmthLevel(self.analyze_conversation_warmth(recent_messages_limit=5))
+            # Analyze message
+            new_warmth_level = WarmthLevel(self.analyze_message_warmth_regex(message.content))
 
             # Update warmth tracking
             self.current_warmth_level = new_warmth_level
@@ -327,30 +288,110 @@ LLM response: {llm_response}"""
             String guidance for the LLM
         """
         current_level = self.current_warmth_level.value
-        max_level = self.max_warmth_achieved.value
 
-        # Determine the next appropriate warmth level
-        if max_level < WarmthLevel.WILL.value:  # Haven't reached maximum warmth yet
-            target_level = min(max_level + 1, 6)  # Try to increase warmth gradually
-        else:
-            target_level = max(4, current_level)  # Stay at higher levels once achieved
+        # ALWAYS move up the question ladder - next question MUST be higher than current level
+        target_level = min(current_level + 1, 6)  # Always progress to the next level
+
+        # If we're already at max level (6), stay there
+        if current_level >= 6:
+            target_level = 6
 
         warmth_level = WarmthLevel(target_level)
 
-        guidance = f"""Based on the current conversation warmth level ({current_level}/6, max achieved: {max_level}/6),
-consider asking a {warmth_level.get_question_type()} question using '{warmth_level.name}' structure.
+        # Get specific guidance for the target warmth level
+        specific_guidance = self._get_specific_question_guidance(warmth_level)
 
-Question warmth levels (from simple to complex):
-- 'is' questions: Factual (warmth level 1) - "Is this important to you?"
-- 'did' questions: Historical Factual (warmth level 2) - "Did you experience this before?"
-- 'can' questions: Capability (warmth level 3) - "Can you imagine doing this?"
-- 'will' questions: Intention (warmth level 4) - "Will you consider this approach?"
-- 'would' questions: Hypothetical (warmth level 5) - "Would you be open to exploring this?"
-- 'might' questions: Speculative (warmth level 6) - "Might there be other perspectives on this?"
+        guidance = f"""🚨 MANDATORY PROGRESSION: You MUST ask a {warmth_level.get_question_type()} question using '{warmth_level.name.lower()}' structure.
 
-{f'Ready for call to action - user has shown high engagement!' if max_level >= 4 else 'Continue building warmth before call to action.'}"""
+CURRENT WARMTH: {current_level}/6 ({WarmthLevel(current_level).name})
+REQUIRED NEXT LEVEL: {target_level}/6 ({warmth_level.name}) - {warmth_level.get_question_type()}
+
+⚠️  CRITICAL: The next question MUST move UP the ladder from level {current_level} to level {target_level}.
+    DO NOT ask another {WarmthLevel(current_level).name.lower()} question - you MUST ask a {warmth_level.name.lower()} question.
+
+{specific_guidance}
+
+📊 QUESTION LADDER PROGRESSION (MUST FOLLOW IN ORDER):
+1. 'is' questions (Level 1): Factual verification - "Is this important to you?"
+2. 'did' questions (Level 2): Historical exploration - "Did you experience this before?"
+3. 'can' questions (Level 3): Capability assessment - "Can you imagine doing this?"
+4. 'will' questions (Level 4): Future intention - "Will you consider this approach?"
+5. 'would' questions (Level 5): Hypothetical scenarios - "Would you be open to exploring this?"
+6. 'might' questions (Level 6): Speculative possibilities - "Might there be other perspectives on this?"
+"""
 
         return guidance
+
+    def _get_specific_question_guidance(self, warmth_level: WarmthLevel) -> str:
+        """
+        Get specific guidance for asking questions at a particular warmth level.
+
+        Args:
+            warmth_level: The target warmth level
+
+        Returns:
+            Specific guidance for that warmth level
+        """
+        if warmth_level == WarmthLevel.IS:
+            return """STRUCTURE: Start with "Is..." or "Are..."
+FOCUS: Ask about facts, current states, or simple verification
+EXAMPLES: "Is this something you value?", "Are you familiar with this concept?"
+PURPOSE: Establish basic facts and current understanding"""
+
+        elif warmth_level == WarmthLevel.DID:
+            return """STRUCTURE: Start with "Did..." or "Have you..."
+FOCUS: Explore past experiences, historical events, or previous encounters
+EXAMPLES: "Did you face similar challenges before?", "Have you experienced this feeling?"
+PURPOSE: Connect current situation to past experiences"""
+
+        elif warmth_level == WarmthLevel.CAN:
+            return """STRUCTURE: Start with "Can..." or "Are you able to..."
+FOCUS: Assess capabilities, possibilities, or potential actions
+EXAMPLES: "Can you see yourself in this situation?", "Can you imagine a different outcome?"
+PURPOSE: Explore what's possible and assess readiness"""
+
+        elif warmth_level == WarmthLevel.WILL:
+            return """STRUCTURE: Start with "Will..." or "Are you going to..."
+FOCUS: Future intentions, commitments, or planned actions
+EXAMPLES: "Will you take steps toward this?", "Will you consider this path?"
+PURPOSE: Gauge commitment and future-oriented thinking"""
+
+        elif warmth_level == WarmthLevel.WOULD:
+            return """STRUCTURE: Start with "Would..." or "If you could..."
+FOCUS: Hypothetical scenarios, preferences, or conditional situations
+EXAMPLES: "Would you be interested in exploring this?", "Would this approach work for you?"
+PURPOSE: Explore preferences and hypothetical engagement"""
+
+        elif warmth_level == WarmthLevel.MIGHT:
+            return """STRUCTURE: Start with "Might..." or "Could it be that..."
+FOCUS: Speculative possibilities, alternative perspectives, or deeper insights
+EXAMPLES: "Might there be other ways to view this?", "Might this connect to something deeper?"
+PURPOSE: Encourage reflection on possibilities and deeper meaning"""
+
+        else:
+            return "Ask an engaging question that fits the conversation flow."
+
+    def log_warmth_progression(self, user_message: str):
+        """
+        Log warmth progression for debugging and monitoring.
+
+        Args:
+            user_message: The user's message to analyze
+        """
+        try:
+            # Analyze the current message
+            message_warmth = self.analyze_message_warmth_regex(user_message)
+            next_target = min(self.current_warmth_level.value + 1, 6)
+
+            logger.info(f"🎯 Warmth Progression - Chat: {self.chat_id}")
+            logger.info(f"  📝 Message: '{user_message[:50]}...' -> Detected Warmth: {message_warmth}")
+            logger.info(f"  📊 Current Level: {self.current_warmth_level.value}/6 ({self.current_warmth_level.name})")
+            logger.info(f"  🏆 Max Achieved: {self.max_warmth_achieved.value}/6 ({self.max_warmth_achieved.name})")
+            logger.info(f"  ⬆️  Next Required: {next_target}/6 ({WarmthLevel(next_target).name if next_target <= 6 else 'MAX'})")
+            logger.info(f"  🎯 Ready for CTA: {self.ready_for_call_to_action()}")
+
+        except Exception as e:
+            logger.error(f"Error logging warmth progression: {e}")
 
     def reset_conversation(self):
         """

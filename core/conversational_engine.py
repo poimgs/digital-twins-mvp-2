@@ -110,11 +110,11 @@ COMMUNICATION STYLE & VOICE:
             List of exactly 3 follow-up questions
         """
         try:
-            system_prompt = f"""You are an expert at generating follow-up questions for digital twin conversations.
+            system_prompt = f"""You are an expert at generating follow-up questions for the user to ask the digital twin.
 
 Your task is to generate exactly 3 follow-up questions based on the conversation context.
 
-PERSONALITY PROFILE:
+DIGITAL TWIN PERSONALITY PROFILE:
 {self.bot_personality}
 
 WARMTH GUIDANCE FOR CURRENT STORY QUESTIONS:
@@ -127,19 +127,37 @@ OTHER AVAILABLE STORIES:
 {other_story_summaries if other_story_summaries else "No other stories available"}
 
 CONVERSATION SUMMARY:
-{conversation_summary}"""
-
-            user_prompt = f"""Based on this conversation exchange, generate exactly 3 follow-up questions:
-
-User: {user_message}
-Bot: {bot_response}
+{conversation_summary}
 
 Generate 3 questions following this strategy:
-1. A question that encourages deeper engagement with the current story (use warmth guidance)
-2. A question that nudges toward exploring a different story from the available stories
-3. A question of your choice that fits the conversation flow and personality
 
-Each question should be up to 7 words long and engaging."""
+1. CURRENT STORY QUESTION: 🚨 MANDATORY PROGRESSION - You MUST move UP the question ladder!
+   - REQUIRED: Follow the EXACT structure specified in the warmth guidance above
+   - The warmth guidance tells you the REQUIRED next level - you MUST use that structure
+   - Focus on the current relevant story
+   - This question MUST progress to the next warmth level - NO EXCEPTIONS
+
+2. OTHER STORY QUESTION: Ask about exploring a different story from the available stories
+   - Can use any appropriate question structure
+   - Should nudge toward exploring different experiences
+
+3. LLM CHOICE QUESTION: Your choice that fits conversation flow and personality
+   - Can use any appropriate question structure
+   - Should be engaging and relevant
+
+Each question should be up to 7 words long and engaging.
+
+🚨 CRITICAL REQUIREMENT FOR QUESTION #1:
+- The warmth guidance above specifies the EXACT question structure you MUST use
+- You MUST progress up the ladder - if current level is "can", you MUST ask "will" questions
+- If current level is "will", you MUST ask "would" questions, etc.
+- NO EXCEPTIONS - the first question MUST move to the next warmth level
+- Failure to follow this progression breaks the conversation flow"""
+
+            user_prompt = f"""Conversation exchange: 
+User: {user_message}
+Bot: {bot_response}
+"""
 
             # Schema for the follow-up questions
             questions_schema = {
@@ -216,36 +234,24 @@ Each question should be up to 7 words long and engaging."""
             relevant_story = conversation_manager.find_relevant_story(stories)
             conversation_history = conversation_manager.get_conversation_history_for_llm()
 
-            # Get current warmth level and guidance for question warmth level
-            current_warmth_level = conversation_manager.get_current_warmth_level()
-            ready_for_call_to_action = conversation_manager.ready_for_call_to_action()
+            # Get guidance for question warmth level
             warmth_guidance = conversation_manager.get_next_question_guidance()
 
             # Prepare call to action context based on warmth level
             cta_context = ""
-            if not conversation_manager.call_to_action_shown:
-                if ready_for_call_to_action:
-                    # User has shown high engagement (warmth level 4+)
-                    cta_context = f"""
+            if not conversation_manager.call_to_action_shown and conversation_manager.ready_for_call_to_action():
+                cta_context = f"""
 CALL TO ACTION GUIDANCE:
-Current user warmth level: {current_warmth_level.value}/6
-They are ready for your call to action: "{self.call_to_action}"
 
-You may naturally incorporate this call to action into your response. The user has demonstrated:
+Naturally incorporate this call to action into your response. 
+{self.call_to_action}
+
+The user has demonstrated:
 - Deep engagement through higher-level questions and interactions
 - Sustained interest across multiple interactions
 - Readiness for more meaningful connection
 
-Weave the call to action naturally into your response style. Don't force it - let it flow from the conversation."""
-                elif len(conversation_history) >= 10:
-                    # Fallback to turn-based logic if warmth isn't high enough
-                    cta_context = f"""
-CALL TO ACTION GUIDANCE:
-Current user warmth level: {current_warmth_level.value}/6
-The user may not be fully warmed up yet, but you have a call to action available: "{self.call_to_action}"
-
-Consider if the conversation feels right for it, but prioritize building more warmth first.
-Focus on deeper engagement before introducing the call to action."""            
+Weave the call to action naturally into your response style."""
 
             system_prompt = f"""You are a digital twin created from personal stories and experiences.
 Respond as if you are the person whose stories were analyzed, maintaining their personality, communication style, and emotional patterns.
