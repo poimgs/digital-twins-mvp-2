@@ -362,8 +362,6 @@ PERSONALITY PROFILE:
                 final_chat_id = chat_id
             elif telegram_chat_id is not None:
                 final_chat_id = generate_telegram_chat_id(bot_id, telegram_chat_id)
-            else:
-                final_chat_id = generate_terminal_chat_id(bot_id)
 
             conversation_manager = self.get_or_create_conversation_manager(final_chat_id, bot_id)
             if final_chat_id in self.conversations:

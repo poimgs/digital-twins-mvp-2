@@ -641,11 +641,6 @@ def generate_telegram_chat_id(bot_id: str, telegram_chat_id: int) -> str:
     return f"{bot_id}_{telegram_chat_id}"
 
 
-def generate_terminal_chat_id(bot_id: str) -> str:
-    """Generate a chat_id for terminal app using default user."""
-    return f"{bot_id}_default"
-
-
 @dataclass
 class ConversationResponse:
     """Data class representing a conversation response."""
