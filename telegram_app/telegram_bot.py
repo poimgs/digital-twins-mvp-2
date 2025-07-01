@@ -12,6 +12,8 @@ Example:
 """
 
 import sys
+import signal
+import asyncio
 import logging
 from pathlib import Path
 
@@ -45,13 +47,22 @@ class TelegramDigitalTwin:
         self.engine = ConversationalEngine(bot_id)
         self.bot_info: Bot = self._load_bot_info()
 
+        # Create shutdown event for graceful exit
+        self._shutdown_event = asyncio.Event()
+        self._is_shutting_down = False
 
+        # Track active message processing tasks
+        self._active_tasks = set()
+        self._task_lock = asyncio.Lock()
 
         # Create Telegram application
         self.application = Application.builder().token(telegram_token).build()
 
         # Add handlers
         self._setup_handlers()
+
+        # Setup signal handlers for graceful shutdown
+        self._setup_signal_handlers()
     
     def _load_bot_info(self):
         """Load bot information from database."""
@@ -64,7 +75,95 @@ class TelegramDigitalTwin:
         except Exception as e:
             logger.error(f"Error loading bot information: {e}")
             raise
-    
+
+    def _setup_signal_handlers(self):
+        """Set up signal handlers for graceful shutdown."""
+        def signal_handler(signum, frame):
+            logger.info(f"Received signal {signum} ({signal.Signals(signum).name}), initiating graceful shutdown...")
+            # Create a task to handle shutdown in the event loop
+            # We need to schedule the shutdown in the event loop
+            # This will be handled by the run method
+            self._shutdown_event.set()
+
+        # Register signal handlers
+        signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
+        signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
+        logger.info("Signal handlers registered for graceful shutdown")
+
+    async def _add_active_task(self, task):
+        """Add a task to the active tasks set."""
+        async with self._task_lock:
+            self._active_tasks.add(task)
+
+    async def _remove_active_task(self, task):
+        """Remove a task from the active tasks set."""
+        async with self._task_lock:
+            self._active_tasks.discard(task)
+
+    async def _wait_for_active_tasks(self, timeout: float = 60.0):
+        """Wait for all active tasks to complete with a timeout."""
+        if not self._active_tasks:
+            return
+
+        logger.info(f"Waiting for {len(self._active_tasks)} active tasks to complete...")
+
+        try:
+            # Wait for all active tasks to complete, with timeout
+            await asyncio.wait_for(
+                asyncio.gather(*self._active_tasks, return_exceptions=True),
+                timeout=timeout
+            )
+            logger.info("All active tasks completed successfully")
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout waiting for tasks to complete after {timeout}s")
+            # Cancel remaining tasks
+            for task in self._active_tasks:
+                if not task.done():
+                    task.cancel()
+            logger.info("Cancelled remaining active tasks")
+        except Exception as e:
+            logger.error(f"Error waiting for active tasks: {e}")
+
+    async def _shutdown(self):
+        """Perform graceful shutdown of the bot."""
+        if self._is_shutting_down:
+            logger.info("Shutdown already in progress...")
+            return
+
+        self._is_shutting_down = True
+        logger.info("Starting graceful shutdown...")
+
+        try:
+            # First, wait for all active message processing tasks to complete
+            logger.info("Waiting for active message processing tasks to complete...")
+            await self._wait_for_active_tasks(timeout=60.0)
+
+            # Stop accepting new updates by stopping the updater
+            updater = self.application.updater
+            if updater:
+                logger.info("Stopping updater (no new messages will be processed)...")
+                await updater.stop()
+
+            # Give a brief moment for any final operations to complete
+            await asyncio.sleep(1.0)
+
+            # Stop the application gracefully
+            logger.info("Stopping Telegram application...")
+            await self.application.stop()
+
+            # Shutdown the application
+            logger.info("Shutting down Telegram application...")
+            await self.application.shutdown()
+
+            # Perform any additional cleanup here if needed
+            # For example, close database connections, save state, etc.
+            logger.info("Performing cleanup...")
+
+            logger.info("Graceful shutdown completed successfully")
+
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
+
     def _setup_handlers(self):
         """Set up Telegram bot handlers."""
         # Command handlers
@@ -128,7 +227,29 @@ class TelegramDigitalTwin:
             await update.message.reply_text("❌ An error occurred while resetting the conversation.")
     
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle regular text messages."""
+        """Handle regular text messages with task tracking for graceful shutdown."""
+        if self._is_shutting_down:
+            if update.effective_chat:
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text="❌ Sorry, I'm currently unavailable. Please try again later."
+                )
+            return
+
+        # Create a task for this message processing
+        task = asyncio.current_task()
+        if task:
+            await self._add_active_task(task)
+
+        try:
+            await self._handle_message_impl(update, context)
+        finally:
+            # Always remove the task when done
+            if task:
+                await self._remove_active_task(task)
+
+    async def _handle_message_impl(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Implementation of message handling."""
         if not update.message:
             logger.warning("Received message handler call without message")
             return
@@ -150,7 +271,8 @@ class TelegramDigitalTwin:
             # Show typing indicator
             await context.bot.send_chat_action(chat_id=telegram_chat_id, action="typing")
 
-            # Generate response
+            # Generate response (this is the main processing that could take time)
+            logger.debug(f"Processing message from chat {telegram_chat_id}")
             response = self.engine.generate_response(
                 user_message=user_message,
                 bot_id=self.bot_id,
@@ -214,7 +336,29 @@ class TelegramDigitalTwin:
         )
 
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle callback queries from inline keyboard buttons."""
+        """Handle callback queries from inline keyboard buttons with task tracking."""
+        # Create a task for this callback processing
+        if self._is_shutting_down:
+            if update.effective_chat:
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text="❌ Sorry, I'm currently unavailable. Please try again later."
+                )
+            return
+
+        task = asyncio.current_task()
+        if task:
+            await self._add_active_task(task)
+
+        try:
+            await self._handle_callback_query_impl(update, context)
+        finally:
+            # Always remove the task when done
+            if task:
+                await self._remove_active_task(task)
+
+    async def _handle_callback_query_impl(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Implementation of callback query handling."""
         try:
             query = update.callback_query
             if not query:
@@ -249,6 +393,7 @@ class TelegramDigitalTwin:
                         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
                         # Generate response for the selected question
+                        logger.debug(f"Processing callback query from chat {chat_id}")
                         response = self.engine.generate_response(
                             user_message=selected_question,
                             bot_id=self.bot_id,
@@ -289,9 +434,45 @@ class TelegramDigitalTwin:
                 )
     
     def run(self):
-        """Start the Telegram bot."""
+        """Start the Telegram bot with graceful shutdown support."""
         logger.info(f"Starting Telegram bot for {self.bot_info.name if self.bot_info else 'Unknown Bot'}")
-        self.application.run_polling()
+
+        # Run the async version
+        asyncio.run(self.run_async())
+
+    async def run_async(self):
+        """Async version of run method for more control over shutdown."""
+        logger.info(f"Starting Telegram bot for {self.bot_info.name if self.bot_info else 'Unknown Bot'}")
+
+        try:
+            # Initialize the application
+            await self.application.initialize()
+            await self.application.start()
+
+            # Start polling
+            updater = self.application.updater
+            if updater:
+                await updater.start_polling()
+            else:
+                logger.error("Updater is None, cannot start polling")
+                return
+
+            # Wait for shutdown signal
+            logger.info("Bot is running. Press Ctrl+C to stop gracefully.")
+            await self._shutdown_event.wait()
+
+            logger.info("Shutdown signal received, stopping bot...")
+
+        except Exception as e:
+            logger.error(f"Error running bot: {e}")
+            raise
+        finally:
+            # Ensure cleanup happens
+            try:
+                await self._shutdown()
+            except Exception as e:
+                logger.error(f"Error during final cleanup: {e}")
+            logger.info("Bot has stopped running")
 
 
 def main():

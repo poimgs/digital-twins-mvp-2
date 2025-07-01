@@ -231,8 +231,7 @@ Bot: {bot_response}
             # Check if call to action has already been shown - if so, end conversation
             if conversation_manager.call_to_action_shown:
                 reset_message = ("Thank you for our conversation! I've shared what I wanted to share with you. "
-                               "If you'd like to start a new conversation, please use the reset command "
-                               "(/reset for Telegram or 'clear' for terminal).")
+                               "If you'd like to start a new conversation, please use the reset command (/reset)")
                 return ConversationResponse(reset_message, [])
 
             conversation_manager.add_user_message(user_message)
