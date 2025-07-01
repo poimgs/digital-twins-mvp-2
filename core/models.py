@@ -5,6 +5,7 @@ Provides type-safe data structures for all database operations.
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Dict, Any, Optional, List
 from uuid import UUID
@@ -615,6 +616,83 @@ class StoryWithAnalysis:
 def stories_with_analysis_from_dict_list(data_list: List[Dict[str, Any]]) -> List[StoryWithAnalysis]:
     """Convert a list of dictionaries to StoryWithAnalysis instances."""
     return [StoryWithAnalysis.from_dict(data) for data in data_list]
+
+
+@dataclass
+class TokenUsage:
+    """Data class representing token usage tracking for LLM API calls."""
+
+    id: UUID = field(default_factory=uuid.uuid4)
+    bot_id: Optional[UUID] = None
+    chat_id: Optional[str] = None
+    conversation_number: Optional[int] = None
+    operation_type: str = ""  # 'conversation', 'follow_up_questions', 'story_analysis', etc.
+    model: str = ""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    request_metadata: Dict[str, Any] = field(default_factory=dict)
+    created_at: Optional[datetime] = None
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'TokenUsage':
+        """Create a TokenUsage instance from a dictionary."""
+        # Handle UUID conversion
+        usage_id = data.get('id')
+        if isinstance(usage_id, str):
+            usage_id = UUID(usage_id)
+        elif usage_id is None:
+            usage_id = uuid.uuid4()
+
+        bot_id = data.get('bot_id')
+        if isinstance(bot_id, str):
+            bot_id = UUID(bot_id)
+
+        # Handle datetime conversion
+        created_at = data.get('created_at')
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+
+        return cls(
+            id=usage_id,
+            bot_id=bot_id,
+            chat_id=data.get('chat_id'),
+            conversation_number=data.get('conversation_number'),
+            operation_type=data.get('operation_type', ''),
+            model=data.get('model', ''),
+            prompt_tokens=data.get('prompt_tokens', 0),
+            completion_tokens=data.get('completion_tokens', 0),
+            total_tokens=data.get('total_tokens', 0),
+            temperature=data.get('temperature'),
+            max_tokens=data.get('max_tokens'),
+            request_metadata=data.get('request_metadata', {}),
+            created_at=created_at
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert TokenUsage instance to dictionary for database operations."""
+        return {
+            'id': str(self.id),
+            'bot_id': str(self.bot_id) if self.bot_id else None,
+            'chat_id': self.chat_id,
+            'conversation_number': self.conversation_number,
+            'operation_type': self.operation_type,
+            'model': self.model,
+            'prompt_tokens': self.prompt_tokens,
+            'completion_tokens': self.completion_tokens,
+            'total_tokens': self.total_tokens,
+            'temperature': self.temperature,
+            'max_tokens': self.max_tokens,
+            'request_metadata': self.request_metadata,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+def token_usage_from_dict_list(data_list: List[Dict[str, Any]]) -> List[TokenUsage]:
+    """Convert a list of dictionaries to a list of TokenUsage instances."""
+    return [TokenUsage.from_dict(data) for data in data_list]
 
 
 def bots_from_dict_list(data_list: List[Dict[str, Any]]) -> List[Bot]:

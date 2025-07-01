@@ -21,10 +21,11 @@ class ConversationManager:
         """Initialize conversational state for a chat."""
         self.chat_id = chat_id
         self.bot_id = UUID(bot_id)
-        self.story_retrieval_manager = StoryRetrievalManager()
 
         # Get current conversation number
         self.conversation_number = supabase_client.get_current_conversation_number(chat_id)
+        
+        self.story_retrieval_manager = StoryRetrievalManager(chat_id, bot_id, self.conversation_number)
 
         # Load from database or initialize with defaults
         try:
@@ -77,7 +78,11 @@ LLM response: {llm_response}"""
             # Generate updated summary
             updated_summary = llm_service.generate_completion(
                 system_prompt=system_prompt,
-                user_prompt=user_prompt
+                user_prompt=user_prompt,
+                operation_type="conversation_summary",
+                bot_id=str(self.bot_id),
+                chat_id=self.chat_id,
+                conversation_number=self.conversation_number
             )
 
             # Persist to database first, then update local state

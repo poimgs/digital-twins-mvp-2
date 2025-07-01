@@ -10,9 +10,9 @@ from supabase import create_client, Client
 from config.settings import settings
 from core.models import (
     Bot, Story, StoryAnalysis, PersonalityProfile, ConversationMessage, LLMMessage, ConversationState,
-    StoryWithAnalysis, stories_from_dict_list, story_analyses_from_dict_list,
+    StoryWithAnalysis, TokenUsage, stories_from_dict_list, story_analyses_from_dict_list,
     conversation_messages_from_dict_list, conversation_messages_to_llm_format,
-    bots_from_dict_list
+    bots_from_dict_list, token_usage_from_dict_list
 )
 
 logger = logging.getLogger(__name__)
@@ -593,6 +593,26 @@ class SupabaseClient:
             return True
         except Exception as e:
             logger.error(f"Error resetting conversation: {e}")
+            return False
+
+    def create_token_usage(self, token_usage: TokenUsage) -> bool:
+        """
+        Create a new token usage record.
+
+        Args:
+            token_usage: TokenUsage instance to create
+
+        Returns:
+            True if creation was successful
+        """
+        try:
+            data = token_usage.to_dict()
+            data["created_at"] = datetime.now(timezone.utc).isoformat()
+            result = self.client.table("token_usage").insert(data).execute()
+            logger.debug(f"Created token usage record: {result.data}")
+            return True
+        except Exception as e:
+            logger.error(f"Error creating token usage record: {e}")
             return False
 
 # Global Supabase client instance

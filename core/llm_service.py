@@ -5,10 +5,12 @@ Provides a centralized interface for all LLM interactions.
 
 import json
 import logging
+from decimal import Decimal
 from typing import Dict, List, Optional, Any
+from uuid import UUID
 from openai import OpenAI
 from config.settings import settings
-from core.models import LLMMessage
+from core.models import LLMMessage, TokenUsage
     
 
 logger = logging.getLogger(__name__)
@@ -44,13 +46,80 @@ class LLMService:
             "gpt-4o-mini-2024-07-18"
         ]
         return any(self.model.startswith(model) for model in supported_models)
+
+    def _track_token_usage(
+        self,
+        response,
+        operation_type: str,
+        bot_id: Optional[str] = None,
+        chat_id: Optional[str] = None,
+        conversation_number: Optional[int] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        request_metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Track token usage from an OpenAI API response.
+
+        Args:
+            response: OpenAI API response object
+            operation_type: Type of operation (e.g., 'conversation', 'follow_up_questions')
+            bot_id: Optional bot ID
+            chat_id: Optional chat ID
+            conversation_number: Optional conversation number
+            temperature: Temperature used for the request
+            max_tokens: Max tokens used for the request
+            request_metadata: Additional metadata about the request
+        """
+        try:
+            # Extract token usage from response
+            usage = response.usage
+            prompt_tokens = usage.prompt_tokens
+            completion_tokens = usage.completion_tokens
+            total_tokens = usage.total_tokens
+
+            # Create token usage record
+            # Convert bot_id string to UUID if provided
+            bot_uuid = UUID(bot_id) if bot_id else None
+
+            token_usage = TokenUsage(
+                bot_id=bot_uuid,
+                chat_id=chat_id,
+                conversation_number=conversation_number,
+                operation_type=operation_type,
+                model=self.model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                request_metadata=request_metadata or {}
+            )
+
+            # Import here to avoid circular imports
+            from core.supabase_client import supabase_client
+
+            # Store the usage record
+            success = supabase_client.create_token_usage(token_usage)
+            if success:
+                logger.debug(f"Tracked token usage: {total_tokens} tokens for {operation_type}")
+            else:
+                logger.warning(f"Failed to track token usage for {operation_type}")
+
+        except Exception as e:
+            logger.error(f"Error tracking token usage: {e}")
+            # Don't raise the exception to avoid breaking the main flow
     
     def generate_completion(
         self,
         system_prompt: str,
         user_prompt: str,
         temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        operation_type: str = "completion",
+        bot_id: Optional[str] = None,
+        chat_id: Optional[str] = None,
+        conversation_number: Optional[int] = None
     ) -> str:
         """
         Generate a completion without structured output.
@@ -78,6 +147,24 @@ class LLMService:
             }
 
             response = self.client.chat.completions.create(**kwargs)
+
+            # Track token usage
+            request_metadata = {
+                "system_prompt_length": len(system_prompt),
+                "user_prompt_length": len(user_prompt),
+                "message_count": len(messages)
+            }
+            self._track_token_usage(
+                response=response,
+                operation_type=operation_type,
+                bot_id=bot_id,
+                chat_id=chat_id,
+                conversation_number=conversation_number,
+                temperature=temperature or self.temperature,
+                max_tokens=max_tokens or self.max_tokens,
+                request_metadata=request_metadata
+            )
+
             content = response.choices[0].message.content
 
             # Check if content is None or empty
@@ -97,7 +184,11 @@ class LLMService:
         user_prompt: str,
         schema: Dict[str, Any],
         temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        operation_type: str = "structured_response",
+        bot_id: Optional[str] = None,
+        chat_id: Optional[str] = None,
+        conversation_number: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Generate a structured response using JSON schema validation.
@@ -134,6 +225,26 @@ class LLMService:
             }
 
             response = self.client.chat.completions.create(**kwargs)
+
+            # Track token usage
+            request_metadata = {
+                "system_prompt_length": len(system_prompt),
+                "user_prompt_length": len(user_prompt),
+                "message_count": len(messages),
+                "schema_provided": True,
+                "schema_properties_count": len(schema.get("properties", {}))
+            }
+            self._track_token_usage(
+                response=response,
+                operation_type=operation_type,
+                bot_id=bot_id,
+                chat_id=chat_id,
+                conversation_number=conversation_number,
+                temperature=temperature or self.temperature,
+                max_tokens=max_tokens or self.max_tokens,
+                request_metadata=request_metadata
+            )
+
             content = response.choices[0].message.content
 
             # Check if content is None or empty
@@ -160,7 +271,11 @@ class LLMService:
                 system_prompt=fallback_system_prompt,
                 user_prompt=user_prompt,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                operation_type=f"{operation_type}_fallback",
+                bot_id=bot_id,
+                chat_id=chat_id,
+                conversation_number=conversation_number
             )
             return self.parse_json_response(fallback_response)
 
@@ -198,7 +313,11 @@ class LLMService:
         self,
         messages: List[LLMMessage],
         temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        operation_type: str = "conversation",
+        bot_id: Optional[str] = None,
+        chat_id: Optional[str] = None,
+        conversation_number: Optional[int] = None
     ) -> str:
         """
         Generate a completion using LLMMessage objects.
@@ -229,6 +348,25 @@ class LLMService:
         }
 
         response = self.client.chat.completions.create(**kwargs)
+
+        # Track token usage
+        total_content_length = sum(len(msg.content) for msg in valid_messages)
+        request_metadata = {
+            "message_count": len(valid_messages),
+            "total_content_length": total_content_length,
+            "message_types": [msg.role for msg in valid_messages]
+        }
+        self._track_token_usage(
+            response=response,
+            operation_type=operation_type,
+            bot_id=bot_id,
+            chat_id=chat_id,
+            conversation_number=conversation_number,
+            temperature=temperature or self.temperature,
+            max_tokens=max_tokens or self.max_tokens,
+            request_metadata=request_metadata
+        )
+
         content = response.choices[0].message.content
 
         # Check if content is None or empty
@@ -237,101 +375,6 @@ class LLMService:
             raise ValueError("Empty response from OpenAI API")
 
         return content.strip()
-
-    def generate_structured_response_from_llm_messages(
-        self,
-        messages: List[LLMMessage],
-        schema: Dict[str, Any],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None
-    ) -> Dict[str, Any]:
-        """
-        Generate a structured response using LLMMessage objects.
-
-        Args:
-            messages: List of LLMMessage instances
-            schema: JSON schema for response validation
-            temperature: Override default temperature
-            max_tokens: Override default max tokens
-
-        Returns:
-            The parsed JSON response matching the schema
-        """
-        try:
-            # Convert LLMMessage objects to dictionaries for OpenAI API
-            # Filter out any messages with empty content
-            valid_messages = [msg for msg in messages if msg.content and msg.content.strip()]
-
-            if not valid_messages:
-                logger.error("No valid messages found after filtering empty content")
-                raise ValueError("No valid messages to send to OpenAI API")
-
-            message_dicts = [message.to_dict() for message in valid_messages]
-
-            kwargs = {
-                "model": self.model,
-                "messages": message_dicts,
-                "temperature": temperature or self.temperature,
-                "max_tokens": max_tokens or self.max_tokens,
-                "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "extraction_schema",
-                        "strict": True,
-                        "schema": schema
-                    }
-                }
-            }
-
-            logger.debug(f"Making OpenAI API call with {len(message_dicts)} messages")
-            response = self.client.chat.completions.create(**kwargs)
-            logger.debug(f"Received response with {len(response.choices)} choices")
-            content = response.choices[0].message.content
-
-            # Check if content is None or empty
-            if not content:
-                logger.warning("Received empty response from OpenAI API")
-                raise ValueError("Empty response from OpenAI API")
-
-            content = content.strip()
-
-            # Check if content is still empty after stripping
-            if not content:
-                logger.warning("Received whitespace-only response from OpenAI API")
-                raise ValueError("Whitespace-only response from OpenAI API")
-
-            # Parse and return the structured response
-            return json.loads(content)
-
-        except Exception as e:
-            logger.error(f"Error generating conversation structured response: {e}")
-            logger.error(f"Error type: {type(e).__name__}")
-
-            # Log additional context for debugging
-            logger.error(f"Full error details: {str(e)}")
-
-            # Fallback to regular completion with JSON instruction in prompt
-            logger.info("Falling back to regular completion with JSON instruction")
-            try:
-                fallback_system_prompt = f"{messages[0].content}\n\nIMPORTANT: Respond with valid JSON only. The JSON must include 'response' and 'follow_up_questions' fields."
-                fallback_user_prompt = messages[-1].content if len(messages) > 1 else ""
-                fallback_response = self.generate_completion(
-                    system_prompt=fallback_system_prompt,
-                    user_prompt=fallback_user_prompt,
-                    temperature=temperature,
-                    max_tokens=max_tokens
-                )
-                logger.info(f"Fallback response received: {len(fallback_response)} characters")
-                return self.parse_json_response(fallback_response)
-            except Exception as fallback_error:
-                logger.error(f"Fallback also failed: {fallback_error}")
-                logger.error(f"Fallback error type: {type(fallback_error).__name__}")
-                # Return a safe default response that matches the expected schema
-                logger.info("Returning safe default response")
-                return {
-                    "response": "I'm sorry, I'm having trouble responding right now. Could you try again?",
-                    "follow_up_questions": []
-                }
 
 # Global LLM service instance
 llm_service = LLMService()

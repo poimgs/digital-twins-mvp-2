@@ -119,7 +119,8 @@ Read all the provided stories and synthesize your findings to answer the followi
             response = llm_service.generate_structured_response(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                schema=schema
+                schema=schema,
+                operation_type="personality_generation"
             )
 
             # Convert to PersonalityAnalysis dataclass

@@ -52,7 +52,8 @@ class StoryDeconstructor:
             response = llm_service.generate_structured_response(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                schema=schema
+                schema=schema,
+                operation_type="story_trigger_analysis"
             )
 
             if response:
@@ -95,7 +96,8 @@ class StoryDeconstructor:
             response = llm_service.generate_structured_response(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                schema=schema
+                schema=schema,
+                operation_type="story_emotion_analysis"
             )
 
             if response:
@@ -136,7 +138,8 @@ class StoryDeconstructor:
             response = llm_service.generate_structured_response(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                schema=schema
+                schema=schema,
+                operation_type="story_thought_analysis"
             )
 
             if response:
@@ -188,7 +191,8 @@ class StoryDeconstructor:
             response = llm_service.generate_structured_response(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                schema=schema
+                schema=schema,
+                operation_type="story_values_analysis"
             )
 
             if response:
@@ -226,7 +230,8 @@ Values: {values}
             # Use structured response with summary schema
             return llm_service.generate_completion(
                 system_prompt=system_prompt,
-                user_prompt=user_prompt
+                user_prompt=user_prompt,
+                operation_type="story_summary",
             )
 
         except Exception as e:

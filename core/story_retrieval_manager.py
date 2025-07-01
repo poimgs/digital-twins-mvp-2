@@ -22,9 +22,11 @@ class StoryRetrievalManager:
     to select the most contextually appropriate stories for conversations.
     """
 
-    def __init__(self):
+    def __init__(self, chat_id: str, bot_id: str, conversation_number: int):
         """Initialize the story retrieval manager."""
-        pass
+        self.chat_id = chat_id
+        self.bot_id = bot_id
+        self.conversation_number = conversation_number
 
     def find_relevant_story(self, stories: List[StoryWithAnalysis], conversation_summary: str) -> Optional[StoryWithAnalysis]:
         """
@@ -76,7 +78,11 @@ Values: {story.values}
             response = llm_service.generate_structured_response(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                schema=schema
+                schema=schema,
+                operation_type="story_relevance_judgement",
+                bot_id=str(self.bot_id),
+                chat_id=str(self.chat_id),
+                conversation_number=self.conversation_number
             )
 
             # Return story with id (convert UUID to string for comparison)

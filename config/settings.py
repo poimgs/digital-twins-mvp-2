@@ -4,7 +4,7 @@ Loads environment variables and provides centralized access to configuration.
 """
 
 import os
-from typing import Optional
+from typing import Dict
 from dotenv import load_dotenv
 
 # Load environment variables from .env file (override existing env vars)

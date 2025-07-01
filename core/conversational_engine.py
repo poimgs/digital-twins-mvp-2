@@ -10,7 +10,6 @@ import random
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
 from core.conversation_manager import ConversationManager
-from core.story_retrieval_manager import StoryRetrievalManager
 from core.models import LLMMessage, ConversationResponse, StoryWithAnalysis, generate_telegram_chat_id, generate_terminal_chat_id
 
 logger = logging.getLogger(__name__)
@@ -27,7 +26,6 @@ class ConversationalEngine:
         """Initialize the conversational engine."""
         self.bot_id = bot_id
         self.conversations: Dict[str, ConversationManager] = {}  # chat_id -> ConversationManager
-        self.story_retrieval_manager = StoryRetrievalManager()
         self.bot_personality: str = self.get_bot_personality_summary()
         
         # Get bot call to action and keyword
@@ -207,7 +205,8 @@ Each question should be up to 7 words long and engaging.
         relevant_story: Optional[StoryWithAnalysis],
         other_story_summaries: str,
         warmth_guidance: str,
-        conversation_history: List[LLMMessage]
+        conversation_history: List[LLMMessage],
+        conversation_manager
     ) -> List[str]:
         """
         Generate three follow-up questions using a dedicated LLM call.
@@ -266,7 +265,11 @@ Bot: {bot_response}
                 questions_response = llm_service.generate_structured_response(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
-                    schema=questions_schema
+                    schema=questions_schema,
+                    operation_type="follow_up_questions",
+                    bot_id=str(self.bot_id),
+                    chat_id=conversation_manager.chat_id,
+                    conversation_number=conversation_manager.conversation_number
                 )
 
                 # Construct the questions array for initial conversations
@@ -299,7 +302,11 @@ Bot: {bot_response}
                 questions_response = llm_service.generate_structured_response(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
-                    schema=questions_schema
+                    schema=questions_schema,
+                    operation_type="follow_up_questions",
+                    bot_id=str(self.bot_id),
+                    chat_id=conversation_manager.chat_id,
+                    conversation_number=conversation_manager.conversation_number
                 )
 
                 # Construct the questions array for ongoing conversations
@@ -401,7 +408,13 @@ PERSONALITY PROFILE:
                 conversation_history=conversation_history,
                 user_message=user_message
             )
-            response = llm_service.generate_completion_from_llm_messages(messages)
+            response = llm_service.generate_completion_from_llm_messages(
+                messages,
+                operation_type="conversation",
+                bot_id=str(self.bot_id),
+                chat_id=conversation_manager.chat_id,
+                conversation_number=conversation_manager.conversation_number
+            )
 
             # Second LLM: Generate follow-up questions based on the response and context
             other_stories = [story for story in stories if story != relevant_story] if relevant_story else stories
@@ -419,7 +432,8 @@ PERSONALITY PROFILE:
                 relevant_story=relevant_story,
                 other_story_summaries=other_story_summaries,
                 warmth_guidance=warmth_guidance,
-                conversation_history=conversation_history
+                conversation_history=conversation_history,
+                conversation_manager=conversation_manager
             )
 
             # Check if the LLM naturally included the call to action in the response

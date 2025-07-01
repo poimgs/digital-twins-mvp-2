@@ -79,6 +79,23 @@ CREATE TABLE IF NOT EXISTS conversation_state (
     UNIQUE(chat_id, bot_id, conversation_number)
 );
 
+-- Token usage tracking table - stores LLM API usage metrics
+CREATE TABLE IF NOT EXISTS token_usage (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
+    chat_id VARCHAR(255),
+    conversation_number INTEGER,
+    operation_type VARCHAR(50) NOT NULL, -- 'conversation', 'follow_up_questions', 'story_analysis', 'personality_generation', etc.
+    model VARCHAR(100) NOT NULL,
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+    temperature DECIMAL(3, 2),
+    max_tokens INTEGER,
+    request_metadata JSONB, -- Store additional context like system_prompt length, user_prompt length, etc.
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_stories_bot_id ON stories(bot_id);
 CREATE INDEX IF NOT EXISTS idx_story_analysis_story_id ON story_analysis(story_id);
