@@ -309,6 +309,7 @@ class ConversationMessage:
     id: UUID = field(default_factory=uuid.uuid4)
     chat_id: str = ""
     bot_id: UUID = field(default_factory=uuid.uuid4)
+    conversation_number: int = 1
     role: str = "user"  # 'system', 'user', or 'assistant'
     content: str = ""
     created_at: Optional[datetime] = None
@@ -338,6 +339,7 @@ class ConversationMessage:
             id=message_id,
             chat_id=data.get('chat_id', ''),
             bot_id=bot_id,
+            conversation_number=data.get('conversation_number', 1),
             role=data.get('role', 'user'),
             content=data.get('content', ''),
             created_at=created_at
@@ -349,6 +351,7 @@ class ConversationMessage:
             'id': str(self.id),
             'chat_id': self.chat_id,
             'bot_id': str(self.bot_id),
+            'conversation_number': self.conversation_number,
             'role': self.role,
             'content': self.content,
             'created_at': self.created_at.isoformat() if self.created_at else None
@@ -436,6 +439,7 @@ class ConversationState:
     id: UUID = field(default_factory=uuid.uuid4)
     chat_id: str = ""
     bot_id: UUID = field(default_factory=uuid.uuid4)
+    conversation_number: int = 1
     summary: str = ""
     call_to_action_shown: bool = False
     current_warmth_level: int = WarmthLevel.IS.value
@@ -473,6 +477,7 @@ class ConversationState:
             id=state_id,
             chat_id=data.get('chat_id', ''),
             bot_id=bot_id,
+            conversation_number=data.get('conversation_number', 1),
             summary=data.get('summary', ''),
             call_to_action_shown=data.get('call_to_action_shown', False),
             current_warmth_level=data.get('current_warmth_level', WarmthLevel.IS.value),
@@ -488,6 +493,7 @@ class ConversationState:
             'id': str(self.id),
             'chat_id': self.chat_id,
             'bot_id': str(self.bot_id),
+            'conversation_number': self.conversation_number,
             'summary': self.summary,
             'call_to_action_shown': self.call_to_action_shown,
             'current_warmth_level': self.current_warmth_level,
@@ -620,7 +626,6 @@ def generate_chat_id(bot_id: str, user_id: str) -> str:
     """
     Generate a chat_id from bot_id and user_id.
     For Telegram, user_id will be the Telegram chat_id.
-    For terminal app, user_id will be 'default'.
     """
     return f"{bot_id}_{user_id}"
 
@@ -639,6 +644,11 @@ def parse_chat_id(chat_id: str) -> tuple[str, str]:
 def generate_telegram_chat_id(bot_id: str, telegram_chat_id: int) -> str:
     """Generate a chat_id for Telegram using numeric chat_id."""
     return f"{bot_id}_{telegram_chat_id}"
+
+
+def generate_terminal_chat_id(bot_id: str, user_id: str = "default") -> str:
+    """Generate a chat_id for terminal app using default or custom user_id."""
+    return f"{bot_id}_{user_id}"
 
 
 @dataclass

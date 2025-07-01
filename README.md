@@ -22,7 +22,6 @@ narrative-digital-twin/
 ├── config/              # Configuration and prompts
 ├── core/                # Core application logic
 ├── scripts/             # Setup and utility scripts
-└── terminal_app/        # Command-line chat interface
 ```
 
 ## Setup Instructions

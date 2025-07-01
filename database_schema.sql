@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS conversation_history (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     chat_id VARCHAR(255) NOT NULL,
     bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
+    conversation_number INTEGER NOT NULL DEFAULT 1,
     role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant')),
     content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -67,6 +68,7 @@ CREATE TABLE IF NOT EXISTS conversation_state (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     chat_id VARCHAR(255) NOT NULL,
     bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
+    conversation_number INTEGER NOT NULL DEFAULT 1,
     summary TEXT DEFAULT '',
     call_to_action_shown BOOLEAN DEFAULT false,
     current_warmth_level INTEGER DEFAULT 1 CHECK (current_warmth_level >= 1 AND current_warmth_level <= 6),
@@ -74,5 +76,13 @@ CREATE TABLE IF NOT EXISTS conversation_state (
     follow_up_questions TEXT[] DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(chat_id, bot_id)
+    UNIQUE(chat_id, bot_id, conversation_number)
 );
+
+-- Indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_stories_bot_id ON stories(bot_id);
+CREATE INDEX IF NOT EXISTS idx_story_analysis_story_id ON story_analysis(story_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_history_chat_id ON conversation_history(chat_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_history_chat_conversation ON conversation_history(chat_id, conversation_number);
+CREATE INDEX IF NOT EXISTS idx_conversation_state_chat_id ON conversation_state(chat_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_state_chat_conversation ON conversation_state(chat_id, conversation_number);

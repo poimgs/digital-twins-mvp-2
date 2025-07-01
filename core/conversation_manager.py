@@ -23,33 +23,24 @@ class ConversationManager:
         self.bot_id = UUID(bot_id)
         self.story_retrieval_manager = StoryRetrievalManager()
 
+        # Get current conversation number
+        self.conversation_number = supabase_client.get_current_conversation_number(chat_id)
+
         # Load from database or initialize with defaults
         try:
-            state = supabase_client.get_conversation_state(chat_id)
+            state = supabase_client.get_conversation_state(chat_id, self.conversation_number)
             if state:
                 self.summary = state.summary
                 self.call_to_action_shown = state.call_to_action_shown
                 self.current_warmth_level = WarmthLevel(state.current_warmth_level)
                 self.max_warmth_achieved = WarmthLevel(state.max_warmth_achieved)
             else:
-                # Initialize with defaults and create in database
+                # Initialize with defaults - state will be created when first message is sent
                 self.summary = ""
                 self.call_to_action_shown = False
                 self.current_warmth_level = WarmthLevel.IS
                 self.max_warmth_achieved = WarmthLevel.IS
-
-                # Create initial state in database
-                initial_state = ConversationState(
-                    chat_id=chat_id,
-                    bot_id=self.bot_id,
-                    summary=self.summary,
-                    call_to_action_shown=self.call_to_action_shown,
-                    current_warmth_level=self.current_warmth_level.value,
-                    max_warmth_achieved=self.max_warmth_achieved.value,
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc)
-                )
-                supabase_client.insert_conversation_state(initial_state)
+                self._state_needs_creation = True  # Flag to create state on first message
         except Exception as e:
             logger.error(f"Error loading conversation state from database: {e}")
             # Fall back to defaults
@@ -57,6 +48,7 @@ class ConversationManager:
             self.call_to_action_shown = False
             self.current_warmth_level = WarmthLevel.IS
             self.max_warmth_achieved = WarmthLevel.IS
+            self._state_needs_creation = True
 
     def summarize_conversation(self, user_message: str, llm_response: str) -> str:
         """
@@ -92,7 +84,8 @@ LLM response: {llm_response}"""
             try:
                 supabase_client.update_conversation_state(
                     chat_id=self.chat_id,
-                    summary=updated_summary
+                    summary=updated_summary,
+                    conversation_number=self.conversation_number
                 )
                 # Only update local state if database update succeeds
                 self.summary = updated_summary
@@ -113,10 +106,32 @@ LLM response: {llm_response}"""
         Args:
             content: The user's message content
         """
+        # Create conversation state if this is the first message in a new conversation
+        if hasattr(self, '_state_needs_creation') and self._state_needs_creation:
+            try:
+                from core.models import ConversationState
+                initial_state = ConversationState(
+                    chat_id=self.chat_id,
+                    bot_id=self.bot_id,
+                    conversation_number=self.conversation_number,
+                    summary=self.summary,
+                    call_to_action_shown=self.call_to_action_shown,
+                    current_warmth_level=self.current_warmth_level.value,
+                    max_warmth_achieved=self.max_warmth_achieved.value,
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc)
+                )
+                supabase_client.insert_conversation_state(initial_state)
+                self._state_needs_creation = False
+                logger.info(f"Created conversation state for conversation {self.conversation_number}")
+            except Exception as e:
+                logger.error(f"Error creating conversation state: {e}")
+
         # Store message
         message = ConversationMessage(
             chat_id=self.chat_id,
             bot_id=self.bot_id,
+            conversation_number=self.conversation_number,
             role="user",
             content=content,
             created_at=datetime.now(timezone.utc)
@@ -139,6 +154,7 @@ LLM response: {llm_response}"""
         message = ConversationMessage(
             chat_id=self.chat_id,
             bot_id=self.bot_id,
+            conversation_number=self.conversation_number,
             role="assistant",
             content=content,
             created_at=datetime.now(timezone.utc)
@@ -166,7 +182,8 @@ LLM response: {llm_response}"""
             # Get conversation history from database
             return supabase_client.get_conversation_history_for_llm(
                 chat_id=self.chat_id,
-                limit=max_messages
+                limit=max_messages,
+                conversation_number=self.conversation_number
             )
 
         except Exception as e:
@@ -254,7 +271,8 @@ LLM response: {llm_response}"""
             supabase_client.update_conversation_state(
                 chat_id=self.chat_id,
                 current_warmth_level=self.current_warmth_level.value,
-                max_warmth_achieved=self.max_warmth_achieved.value
+                max_warmth_achieved=self.max_warmth_achieved.value,
+                conversation_number=self.conversation_number
             )
 
             logger.info(f"Updated warmth level to {new_warmth_level} (max: {self.max_warmth_achieved})")
@@ -395,18 +413,48 @@ PURPOSE: Encourage reflection on possibilities and deeper meaning"""
 
     def reset_conversation(self):
         """
-        Reset the conversation state for a chat.
+        Reset the conversation state for a chat by incrementing conversation number.
+        This preserves conversation history for analytics while starting fresh.
 
         Returns:
             True if reset was successful
         """
         try:
+            # Call the supabase reset (which just logs the reset)
             supabase_client.reset_conversation(self.chat_id)
+
+            # Increment conversation number for new conversation
+            self.conversation_number = supabase_client.get_current_conversation_number(self.chat_id) + 1
+
             # Reset local state
             self.summary = ""
             self.call_to_action_shown = False
             self.current_warmth_level = WarmthLevel.IS
             self.max_warmth_achieved = WarmthLevel.IS
+
+            # Create initial state for new conversation number to ensure it exists
+            # This is important so that get_current_conversation_number returns the correct value
+            try:
+                from core.models import ConversationState
+                initial_state = ConversationState(
+                    chat_id=self.chat_id,
+                    bot_id=self.bot_id,
+                    conversation_number=self.conversation_number,
+                    summary=self.summary,
+                    call_to_action_shown=self.call_to_action_shown,
+                    current_warmth_level=self.current_warmth_level.value,
+                    max_warmth_achieved=self.max_warmth_achieved.value,
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc)
+                )
+                supabase_client.insert_conversation_state(initial_state)
+                logger.info(f"Created conversation state for new conversation {self.conversation_number}")
+            except Exception as e:
+                logger.error(f"Error creating conversation state for reset: {e}")
+                # Set flag to create state later if immediate creation fails
+                self._state_needs_creation = True
+
+            logger.info(f"Reset conversation {self.chat_id} to conversation number {self.conversation_number}")
             return True
         except Exception as e:
             logger.error(f"Error resetting conversation: {e}")
@@ -426,7 +474,8 @@ PURPOSE: Encourage reflection on possibilities and deeper meaning"""
             # Update the conversation state with the new follow-up questions
             supabase_client.update_conversation_state(
                 chat_id=self.chat_id,
-                follow_up_questions=questions
+                follow_up_questions=questions,
+                conversation_number=self.conversation_number
             )
             logger.info(f"Stored {len(questions)} follow-up questions for chat {self.chat_id}")
             return True
@@ -443,7 +492,7 @@ PURPOSE: Encourage reflection on possibilities and deeper meaning"""
         """
         try:
             # Get the conversation state which now includes follow-up questions
-            state = supabase_client.get_conversation_state(self.chat_id)
+            state = supabase_client.get_conversation_state(self.chat_id, self.conversation_number)
             if state and state.follow_up_questions:
                 return state.follow_up_questions
             return []
@@ -462,7 +511,8 @@ PURPOSE: Encourage reflection on possibilities and deeper meaning"""
             # Clear follow-up questions by setting them to empty list
             supabase_client.update_conversation_state(
                 chat_id=self.chat_id,
-                follow_up_questions=[]
+                follow_up_questions=[],
+                conversation_number=self.conversation_number
             )
             return True
         except Exception as e:

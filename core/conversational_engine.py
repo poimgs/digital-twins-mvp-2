@@ -320,7 +320,8 @@ PERSONALITY PROFILE:
                     try:
                         supabase_client.update_conversation_state(
                             chat_id=final_chat_id,
-                            call_to_action_shown=True
+                            call_to_action_shown=True,
+                            conversation_number=conversation_manager.conversation_number
                         )
                         conversation_manager.call_to_action_shown = True
                         cta_detected = True

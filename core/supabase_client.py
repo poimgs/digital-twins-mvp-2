@@ -359,7 +359,8 @@ class SupabaseClient:
     def get_conversation_history(
         self,
         chat_id: str,
-        limit: int = 50
+        limit: int = 50,
+        conversation_number: Optional[int] = None
     ) -> List[ConversationMessage]:
         """
         Retrieve conversation history for a chat.
@@ -367,15 +368,20 @@ class SupabaseClient:
         Args:
             chat_id: The chat ID (format: bot_id_user_id)
             limit: Maximum number of messages to retrieve
+            conversation_number: Specific conversation number (defaults to current/latest)
 
         Returns:
             List of ConversationMessage instances
         """
         try:
+            if conversation_number is None:
+                conversation_number = self.get_current_conversation_number(chat_id)
+
             result = (
                 self.client.table("conversation_history")
                 .select("*")
                 .eq("chat_id", chat_id)
+                .eq("conversation_number", conversation_number)
                 .order("created_at", desc=True)
                 .limit(limit)
                 .execute()
@@ -389,7 +395,8 @@ class SupabaseClient:
     def get_conversation_history_for_llm(
         self,
         chat_id: str,
-        limit: int = 10
+        limit: int = 10,
+        conversation_number: Optional[int] = None
     ) -> List[LLMMessage]:
         """
         Retrieve conversation history formatted for LLM service.
@@ -397,15 +404,20 @@ class SupabaseClient:
         Args:
             chat_id: The chat ID (format: bot_id_user_id)
             limit: Maximum number of messages to retrieve
+            conversation_number: Specific conversation number (defaults to current/latest)
 
         Returns:
             List of message dictionaries in LLM format
         """
         try:
+            if conversation_number is None:
+                conversation_number = self.get_current_conversation_number(chat_id)
+
             query = (
                 self.client.table("conversation_history")
                 .select("*")
                 .eq("chat_id", chat_id)
+                .eq("conversation_number", conversation_number)
                 .order("created_at", desc=True)
                 .limit(limit)
             )
@@ -420,24 +432,55 @@ class SupabaseClient:
             raise
 
     # Conversation state operations
-    def get_conversation_state(self, chat_id: str) -> Optional[ConversationState]:
+    def get_current_conversation_number(self, chat_id: str) -> int:
         """
-        Retrieve conversation state for a chat.
+        Get the current conversation number for a chat.
 
         Args:
             chat_id: The chat ID (format: bot_id_user_id)
 
         Returns:
-            ConversationState instance or None if not found
+            Current conversation number (defaults to 1 if no conversations exist)
         """
         try:
             result = (
                 self.client.table("conversation_state")
-                .select("*")
+                .select("conversation_number")
                 .eq("chat_id", chat_id)
+                .order("conversation_number", desc=True)
+                .limit(1)
                 .execute()
             )
 
+            if result.data:
+                return result.data[0]['conversation_number']
+            return 1
+        except Exception as e:
+            logger.error(f"Error retrieving current conversation number: {e}")
+            return 1
+
+    def get_conversation_state(self, chat_id: str, conversation_number: Optional[int] = None) -> Optional[ConversationState]:
+        """
+        Retrieve conversation state for a chat.
+
+        Args:
+            chat_id: The chat ID (format: bot_id_user_id)
+            conversation_number: Specific conversation number (defaults to current/latest)
+
+        Returns:
+            ConversationState instance or None if not found
+        """
+        try:
+            if conversation_number is None:
+                conversation_number = self.get_current_conversation_number(chat_id)
+
+            result = (
+                self.client.table("conversation_state")
+                .select("*")
+                .eq("chat_id", chat_id)
+                .eq("conversation_number", conversation_number)
+                .execute()
+            )
             if result.data:
                 return ConversationState.from_dict(result.data[0])
             return None
@@ -476,7 +519,8 @@ class SupabaseClient:
         call_to_action_shown: Optional[bool] = None,
         current_warmth_level: Optional[int] = None,
         max_warmth_achieved: Optional[int] = None,
-        follow_up_questions: Optional[List[str]] = None
+        follow_up_questions: Optional[List[str]] = None,
+        conversation_number: Optional[int] = None
     ) -> Optional[ConversationState]:
         """
         Update specific fields of conversation state.
@@ -488,11 +532,15 @@ class SupabaseClient:
             current_warmth_level: Current warmth level (1-6)
             max_warmth_achieved: Maximum warmth level achieved (1-6)
             follow_up_questions: List of follow-up questions
+            conversation_number: Specific conversation number (defaults to current/latest)
 
         Returns:
             The updated ConversationState instance or None if not found
         """
         try:
+            if conversation_number is None:
+                conversation_number = self.get_current_conversation_number(chat_id)
+
             # Build update dictionary with only provided fields
             update_data: Dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
 
@@ -511,6 +559,7 @@ class SupabaseClient:
                 self.client.table("conversation_state")
                 .update(update_data)
                 .eq("chat_id", chat_id)
+                .eq("conversation_number", conversation_number)
                 .execute()
             )
 
@@ -523,7 +572,8 @@ class SupabaseClient:
 
     def reset_conversation(self, chat_id: str) -> bool:
         """
-        Reset the conversation state for a chat.
+        Reset the conversation state for a chat by incrementing conversation number.
+        This preserves conversation history for analytics while starting fresh.
 
         Args:
             chat_id: Chat identifier (format: bot_id_user_id)
@@ -532,23 +582,17 @@ class SupabaseClient:
             True if reset was successful
         """
         try:
-            # Delete conversation history first
-            history_result = self.client.table("conversation_history").delete().eq("chat_id", chat_id).execute()
+            # Get current conversation number and increment it
+            current_number = self.get_current_conversation_number(chat_id)
+            new_conversation_number = current_number + 1
 
-            # Delete conversation state last
-            state_result = self.client.table("conversation_state").delete().eq("chat_id", chat_id).execute()
+            logger.info(f"Reset conversation {chat_id}: incrementing from conversation {current_number} to {new_conversation_number}")
 
-            logger.info(f"Reset conversation {chat_id}: deleted {len(history_result.data) if history_result.data else 0} history records and {len(state_result.data) if state_result.data else 0} state records")
+            # The conversation manager will create new state for the new conversation number
+            # when it's next accessed, so we don't need to create it here
             return True
         except Exception as e:
             logger.error(f"Error resetting conversation: {e}")
-            # Try to log partial state for debugging
-            try:
-                remaining_state = self.client.table("conversation_state").select("*").eq("chat_id", chat_id).execute()
-                remaining_history = self.client.table("conversation_history").select("id").eq("chat_id", chat_id).execute()
-                logger.error(f"Partial reset state - remaining state records: {len(remaining_state.data) if remaining_state.data else 0}, remaining history records: {len(remaining_history.data) if remaining_history.data else 0}")
-            except:
-                pass  # Don't fail on debugging info
             return False
 
 # Global Supabase client instance
