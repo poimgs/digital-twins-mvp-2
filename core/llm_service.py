@@ -376,5 +376,121 @@ class LLMService:
 
         return content.strip()
 
+    def generate_structured_response_from_llm_messages(
+        self,
+        messages: List[LLMMessage],
+        schema: Dict[str, Any],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        operation_type: str = "structured_response",
+        bot_id: Optional[str] = None,
+        chat_id: Optional[str] = None,
+        conversation_number: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate a structured response using LLMMessage objects and JSON schema validation.
+
+        Args:
+            messages: List of LLMMessage instances
+            schema: JSON schema for response validation
+            temperature: Override default temperature
+            max_tokens: Override default max tokens
+
+        Returns:
+            The parsed JSON response matching the schema
+        """
+        try:
+            # Convert LLMMessage objects to dictionaries for OpenAI API
+            # Filter out any messages with empty content
+            valid_messages = [msg for msg in messages if msg.content and msg.content.strip()]
+
+            if not valid_messages:
+                logger.error("No valid messages found after filtering empty content")
+                raise ValueError("No valid messages to send to OpenAI API")
+
+            message_dicts = [message.to_dict() for message in valid_messages]
+
+            kwargs = {
+                "model": self.model,
+                "messages": message_dicts,
+                "temperature": temperature or self.temperature,
+                "max_tokens": max_tokens or self.max_tokens,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "extraction_schema",
+                        "strict": True,
+                        "schema": schema
+                    }
+                }
+            }
+
+            response = self.client.chat.completions.create(**kwargs)
+
+            # Track token usage
+            total_content_length = sum(len(msg.content) for msg in valid_messages)
+            request_metadata = {
+                "message_count": len(valid_messages),
+                "total_content_length": total_content_length,
+                "message_types": [msg.role for msg in valid_messages],
+                "schema_provided": True,
+                "schema_properties_count": len(schema.get("properties", {}))
+            }
+            self._track_token_usage(
+                response=response,
+                operation_type=operation_type,
+                bot_id=bot_id,
+                chat_id=chat_id,
+                conversation_number=conversation_number,
+                temperature=temperature or self.temperature,
+                max_tokens=max_tokens or self.max_tokens,
+                request_metadata=request_metadata
+            )
+
+            content = response.choices[0].message.content
+
+            # Check if content is None or empty
+            if not content:
+                logger.warning("Received empty response from OpenAI API")
+                raise ValueError("Empty response from OpenAI API")
+
+            # Strip whitespace and check again
+            content = content.strip()
+            # Check if content is still empty after stripping
+            if not content:
+                logger.warning("Received whitespace-only response from OpenAI API")
+                raise ValueError("Whitespace-only response from OpenAI API")
+
+            # Parse and return the structured response
+            return json.loads(content)
+
+        except Exception as e:
+            logger.error(f"Error generating structured response from LLM messages: {e}")
+            # Fallback to regular completion with JSON instruction in prompt
+            logger.info("Falling back to regular completion with JSON instruction")
+
+            # Add JSON instruction to the last user message or create a new one
+            fallback_messages = valid_messages.copy()
+            if fallback_messages and fallback_messages[-1].role == "user":
+                fallback_messages[-1].content += "\n\nIMPORTANT: Respond with valid JSON only."
+            else:
+                fallback_messages.append(LLMMessage("user", "IMPORTANT: Respond with valid JSON only."))
+
+            fallback_response = self.generate_completion_from_llm_messages(
+                messages=fallback_messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                operation_type=operation_type,
+                bot_id=bot_id,
+                chat_id=chat_id,
+                conversation_number=conversation_number
+            )
+
+            try:
+                return json.loads(fallback_response)
+            except json.JSONDecodeError:
+                logger.error("Fallback response is not valid JSON")
+                raise ValueError("Unable to generate valid structured response")
+
 # Global LLM service instance
 llm_service = LLMService()

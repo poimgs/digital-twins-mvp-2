@@ -235,10 +235,14 @@ Each question should be up to 7 words long and engaging.
                     warmth_guidance, relevant_story, other_story_summaries, conversation_summary
                 )
 
-            user_prompt = f"""Conversation exchange:
-User: {user_message}
-Bot: {bot_response}
-"""
+            # Build messages for LLM using conversation history instead of just current exchange
+            messages = self.build_llm_messages(
+                system_prompt=system_prompt,
+                conversation_history=conversation_history,
+                user_message=user_message
+            )
+            # Add the bot's response as the final assistant message
+            messages.append(LLMMessage("assistant", bot_response))
 
             # Use different schemas and response handling for initial vs ongoing conversations
             if is_initial_conversation:
@@ -262,9 +266,8 @@ Bot: {bot_response}
                     "additionalProperties": False
                 }
 
-                questions_response = llm_service.generate_structured_response(
-                    system_prompt=system_prompt,
-                    user_prompt=user_prompt,
+                questions_response = llm_service.generate_structured_response_from_llm_messages(
+                    messages=messages,
                     schema=questions_schema,
                     operation_type="follow_up_questions",
                     bot_id=str(self.bot_id),
@@ -299,9 +302,8 @@ Bot: {bot_response}
                     "additionalProperties": False
                 }
 
-                questions_response = llm_service.generate_structured_response(
-                    system_prompt=system_prompt,
-                    user_prompt=user_prompt,
+                questions_response = llm_service.generate_structured_response_from_llm_messages(
+                    messages=messages,
                     schema=questions_schema,
                     operation_type="follow_up_questions",
                     bot_id=str(self.bot_id),
