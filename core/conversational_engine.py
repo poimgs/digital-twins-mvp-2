@@ -361,6 +361,9 @@ Bot: {bot_response}
 
             # Get bot-specific stories
             stories = supabase_client.get_stories_with_analysis(bot_id)
+            story_summaries = ""
+            for story in stories:
+                story_summaries += f"{story.summary}\n\n"
             relevant_story = conversation_manager.find_relevant_story(stories)
             conversation_history = conversation_manager.get_conversation_history_for_llm()
 
@@ -401,6 +404,12 @@ CONVERSATION CONTEXT:
 
 PERSONALITY PROFILE:
 {self.bot_personality}
+
+RELEVANT STORY:
+{relevant_story.summary if relevant_story else 'No relevant story found'}
+
+SUMMARY OF ALL STORIES:
+{story_summaries}
             """
             
             messages = self.build_llm_messages(
