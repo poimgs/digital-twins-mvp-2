@@ -220,6 +220,8 @@ class TelegramDigitalTwin:
 
             if success:
                 await update.message.reply_text("✅ Conversation history has been reset!")
+                welcome_text = f"{self.bot_info.welcome_message}"
+                await update.message.reply_text(welcome_text)
             else:
                 await update.message.reply_text("❌ Failed to reset conversation history.")
         except Exception as e:
