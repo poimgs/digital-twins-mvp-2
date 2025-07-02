@@ -137,6 +137,23 @@ Each question should be up to 7 words long and welcoming."""
         """
         Generate system prompt for ongoing conversations with specific, contextual questions.
         """
+        
+        # Create story context
+        if relevant_story:
+            story_context = f"""
+CURRENT RELEVANT STORY:
+{relevant_story.content}
+
+OTHER AVAILABLE STORIES:
+{other_story_summaries if other_story_summaries else "No other stories available"}
+"""
+        else:
+            story_context = f"""
+OTHER AVAILABLE STORIES:
+{other_story_summaries if other_story_summaries else "No other stories available"}             
+"""
+        
+
         return f"""You are an expert at generating follow-up questions for the user to ask the digital twin.
 
 Your task is to generate exactly 3 follow-up questions based on the established conversation context.
@@ -147,11 +164,7 @@ DIGITAL TWIN PERSONALITY PROFILE:
 WARMTH GUIDANCE FOR CURRENT STORY QUESTIONS:
 {warmth_guidance}
 
-CURRENT RELEVANT STORY:
-{relevant_story.content if relevant_story else 'No relevant story found'}
-
-OTHER AVAILABLE STORIES:
-{other_story_summaries if other_story_summaries else "No other stories available"}
+{story_context}
 
 CONVERSATION SUMMARY:
 {conversation_summary}
@@ -236,13 +249,16 @@ Each question should be up to 7 words long and engaging.
                 )
 
             # Build messages for LLM using conversation history instead of just current exchange
+            user_message = f"""
+USER MESSAGE: {user_message}
+BOT RESPONSE: {bot_response}
+            """
             messages = self.build_llm_messages(
                 system_prompt=system_prompt,
                 conversation_history=conversation_history,
                 user_message=user_message
             )
             # Add the bot's response as the final assistant message
-            messages.append(LLMMessage("assistant", bot_response))
 
             # Use different schemas and response handling for initial vs ongoing conversations
             if is_initial_conversation:
@@ -371,6 +387,21 @@ Each question should be up to 7 words long and engaging.
 
             # Get guidance for question warmth level
             warmth_guidance = conversation_manager.get_next_question_guidance()
+            
+            # story context
+            if relevant_story:
+                story_context = f"""
+RELEVANT STORY:
+{relevant_story.content if relevant_story else 'No relevant story found'}
+
+SUMMARY OF ALL STORIES:
+{story_summaries}
+"""
+            else:
+                story_context = f"""
+SUMMARY OF ALL STORIES:
+{story_summaries}               
+"""
 
             # Prepare call to action context based on warmth level
             cta_context = ""
@@ -407,11 +438,7 @@ CONVERSATION CONTEXT:
 PERSONALITY PROFILE:
 {self.bot_personality}
 
-RELEVANT STORY:
-{relevant_story.content if relevant_story else 'No relevant story found'}
-
-SUMMARY OF ALL STORIES:
-{story_summaries}
+{story_context}
             """
             
             messages = self.build_llm_messages(
