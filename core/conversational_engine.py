@@ -240,13 +240,14 @@ Each question should be up to 7 words long and engaging.
             # Detect if this is an initial conversation (first few exchanges)
             is_initial_conversation = len(conversation_history) <= 2 or not conversation_summary.strip()
 
-            # Use different prompts for initial vs ongoing conversations
-            if is_initial_conversation:
-                system_prompt = self._get_initial_conversation_prompt()
-            else:
-                system_prompt = self._get_ongoing_conversation_prompt(
-                    warmth_guidance, relevant_story, other_story_summaries, conversation_summary
-                )
+            # TODO: Test if removing 
+            # # Use different prompts for initial vs ongoing conversations
+            # if is_initial_conversation:
+            #     system_prompt = self._get_initial_conversation_prompt()
+            # else:
+            system_prompt = self._get_ongoing_conversation_prompt(
+                warmth_guidance, relevant_story, other_story_summaries, conversation_summary
+            )
 
             # Build messages for LLM using conversation history instead of just current exchange
             user_message = f"""
