@@ -148,7 +148,7 @@ WARMTH GUIDANCE FOR CURRENT STORY QUESTIONS:
 {warmth_guidance}
 
 CURRENT RELEVANT STORY:
-{relevant_story.summary if relevant_story else 'No relevant story found'}
+{relevant_story.content if relevant_story else 'No relevant story found'}
 
 OTHER AVAILABLE STORIES:
 {other_story_summaries if other_story_summaries else "No other stories available"}
@@ -408,7 +408,7 @@ PERSONALITY PROFILE:
 {self.bot_personality}
 
 RELEVANT STORY:
-{relevant_story.summary if relevant_story else 'No relevant story found'}
+{relevant_story.content if relevant_story else 'No relevant story found'}
 
 SUMMARY OF ALL STORIES:
 {story_summaries}
