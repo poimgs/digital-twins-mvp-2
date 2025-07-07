@@ -392,7 +392,7 @@ SUMMARY OF ALL STORIES:
 {story_summaries}               
 """
 
-            # Prepare call to action context based on warmth level
+            # Prepare call to action context based on Fibonacci sequence
             cta_context = ""
             if conversation_manager.ready_for_call_to_action():
                 cta_context = f"""

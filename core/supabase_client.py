@@ -431,6 +431,39 @@ class SupabaseClient:
             logger.error(f"Error retrieving conversation history for LLM: {e}")
             raise
 
+    def get_user_message_count(
+        self,
+        chat_id: str,
+        conversation_number: Optional[int] = None
+    ) -> int:
+        """
+        Get the count of user messages in the current conversation.
+
+        Args:
+            chat_id: The chat ID (format: bot_id_user_id)
+            conversation_number: Specific conversation number (defaults to current/latest)
+
+        Returns:
+            Number of user messages in the conversation
+        """
+        try:
+            if conversation_number is None:
+                conversation_number = self.get_current_conversation_number(chat_id)
+
+            result = (
+                self.client.table("conversation_history")
+                .select("*")
+                .eq("chat_id", chat_id)
+                .eq("conversation_number", conversation_number)
+                .eq("role", "user")
+                .execute()
+            )
+
+            return len(result.data) if result.data else 0
+        except Exception as e:
+            logger.error(f"Error getting user message count: {e}")
+            return 0
+
     # Conversation state operations
     def get_current_conversation_number(self, chat_id: str) -> int:
         """

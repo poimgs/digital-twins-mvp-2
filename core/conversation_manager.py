@@ -290,14 +290,53 @@ LLM response: {llm_response}"""
         """
         return self.current_warmth_level
 
+    def _is_fibonacci_number(self, n: int) -> bool:
+        """
+        Check if a number is in the Fibonacci sequence.
+
+        Args:
+            n: Number to check
+
+        Returns:
+            True if n is a Fibonacci number, False otherwise
+        """
+        if n <= 0:
+            return False
+
+        # Generate Fibonacci numbers up to n
+        a, b = 1, 1
+        while a < n:
+            a, b = b, a + b
+
+        return a == n
+
     def ready_for_call_to_action(self) -> bool:
         """
-        Check if the conversation is ready for call to action based on current warmth level.
+        Check if the conversation is ready for call to action based on Fibonacci sequence.
+        CTA is shown when user message count reaches 5, 8, 13, 21, 34, ... (Fibonacci numbers).
 
         Returns:
             True if ready for call to action, False otherwise
         """
-        return self.max_warmth_achieved.value >= WarmthLevel.MIGHT.value 
+        try:
+            user_message_count = supabase_client.get_user_message_count(
+                self.chat_id,
+                self.conversation_number
+            )
+
+            # Check if current user message count is a Fibonacci number >= 5
+            is_fibonacci_trigger = (
+                user_message_count >= 5 and
+                self._is_fibonacci_number(user_message_count)
+            )
+
+            logger.info(f"CTA Check - User messages: {user_message_count}, Is Fibonacci >= 5: {is_fibonacci_trigger}")
+            return is_fibonacci_trigger
+
+        except Exception as e:
+            logger.error(f"Error checking CTA readiness: {e}")
+            # Fallback to warmth-based logic if there's an error
+            return self.max_warmth_achieved.value >= WarmthLevel.MIGHT.value
 
     def get_next_question_guidance(self) -> str:
         """
@@ -402,15 +441,22 @@ PURPOSE: Encourage reflection on possibilities and deeper meaning"""
             message_warmth = self.analyze_message_warmth_regex(user_message)
             next_target = min(self.current_warmth_level.value + 1, 6)
 
-            logger.info(f"🎯 Warmth Progression - Chat: {self.chat_id}")
+            # Get user message count for Fibonacci CTA logic
+            user_message_count = supabase_client.get_user_message_count(
+                self.chat_id,
+                self.conversation_number
+            )
+
+            logger.info(f"🎯 Conversation Progression - Chat: {self.chat_id}")
             logger.info(f"  📝 Message: '{user_message[:50]}...' -> Detected Warmth: {message_warmth}")
             logger.info(f"  📊 Current Level: {self.current_warmth_level.value}/6 ({self.current_warmth_level.name})")
             logger.info(f"  🏆 Max Achieved: {self.max_warmth_achieved.value}/6 ({self.max_warmth_achieved.name})")
             logger.info(f"  ⬆️  Next Required: {next_target}/6 ({WarmthLevel(next_target).name if next_target <= 6 else 'MAX'})")
-            logger.info(f"  🎯 Ready for CTA: {self.ready_for_call_to_action()}")
+            logger.info(f"  💬 User Messages: {user_message_count}")
+            logger.info(f"  🎯 Ready for CTA (Fibonacci): {self.ready_for_call_to_action()}")
 
         except Exception as e:
-            logger.error(f"Error logging warmth progression: {e}")
+            logger.error(f"Error logging conversation progression: {e}")
 
     def reset_conversation(self):
         """
