@@ -281,7 +281,7 @@ class TelegramDigitalTwin:
                 telegram_chat_id=telegram_chat_id
             )
 
-            # Send the main response (which may naturally include call to action)
+            # Send the main response
             await update.message.reply_text(response.response)
 
             # Send follow-up questions as inline keyboard if available
@@ -383,6 +383,8 @@ class TelegramDigitalTwin:
                     questions = conversation_manager.get_follow_up_questions()
 
                     if questions and 0 <= question_index < len(questions):
+                        if conversation_manager.ready_for_call_to_action():
+                            questions[2] = "click to discover our limited-time promotion"
                         selected_question = questions[question_index]
 
                         # Answer the callback query first

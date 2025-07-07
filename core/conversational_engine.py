@@ -325,9 +325,9 @@ BOT RESPONSE: {bot_response}
 
                 # Construct the questions array for ongoing conversations
                 follow_up_questions = [
-                    questions_response.get("current_story_question", "Tell me more about this story?"),
+                    questions_response.get("current_story_question", "Tell me more about this story"),
                     questions_response.get("other_story_question", "What about your other experiences?"),
-                    questions_response.get("llm_choice_question", "How did that make you feel?")
+                    questions_response.get("llm_choice_question", "Tell me more")
                 ]
 
             return follow_up_questions
@@ -392,24 +392,6 @@ SUMMARY OF ALL STORIES:
 {story_summaries}               
 """
 
-            # Prepare call to action context based on Fibonacci sequence
-            cta_context = ""
-            if conversation_manager.ready_for_call_to_action():
-                cta_context = f"""
-CALL TO ACTION GUIDANCE - MANDATORY:
-
-You MUST incorporate this call to action into your response and end the conversation:
-{self.call_to_action}
-
-IMPORTANT REQUIREMENTS:
-- Include the call to action naturally in your response
-- Make it clear this is the end of our conversation
-- Express gratitude for the engaging dialogue
-- Do NOT ask follow-up questions or invite further conversation
-- End with a sense of closure and completion
-
-The user has demonstrated deep engagement and is ready for the next step. This is your opportunity to share what you wanted to share and gracefully conclude our interaction."""
-
             system_prompt = f"""You are a digital twin created from personal stories and experiences.
 Respond as if you are the person whose stories were analyzed, maintaining their personality, communication style, and emotional patterns.
 Use the conversation context to provide natural, contextually-aware responses that build on the ongoing dialogue.
@@ -418,8 +400,6 @@ Ensure that you keep your response to the user's message brief and to the point.
 
 If the conversation is moving away from stories and experiences, guide the conversation back to share stories and insights.
 Do not deviate away from personal stories and experiences.
-
-{cta_context}
 
 CONVERSATION CONTEXT:
 {conversation_manager.summary}
@@ -430,18 +410,22 @@ PERSONALITY PROFILE:
 {story_context}
             """
             
-            messages = self.build_llm_messages(
-                system_prompt=system_prompt,
-                conversation_history=conversation_history,
-                user_message=user_message
-            )
-            response = llm_service.generate_completion_from_llm_messages(
-                messages,
-                operation_type="conversation",
-                bot_id=str(self.bot_id),
-                chat_id=conversation_manager.chat_id,
-                conversation_number=conversation_manager.conversation_number
-            )
+            response = ""
+            if user_message.strip().lower() == "click to discover our limited-time promotion":
+                response = self.call_to_action
+            else:  
+                messages = self.build_llm_messages(
+                    system_prompt=system_prompt,
+                    conversation_history=conversation_history,
+                    user_message=user_message
+                )
+                response = llm_service.generate_completion_from_llm_messages(
+                    messages,
+                    operation_type="conversation",
+                    bot_id=str(self.bot_id),
+                    chat_id=conversation_manager.chat_id,
+                    conversation_number=conversation_manager.conversation_number
+                )
 
             # Second LLM: Generate follow-up questions based on the response and context
             other_stories = [story for story in stories if story != relevant_story] if relevant_story else stories
@@ -451,7 +435,7 @@ PERSONALITY PROFILE:
                 selected_stories = random.sample(other_stories, min(3, len(other_stories)))
                 for story in selected_stories:
                     other_story_summaries += f"- {story.summary}\n"
-                    
+
             follow_up_questions = self._generate_follow_up_questions(
                 user_message=user_message,
                 bot_response=response,
@@ -462,6 +446,9 @@ PERSONALITY PROFILE:
                 conversation_history=conversation_history,
                 conversation_manager=conversation_manager
             )
+            
+            if conversation_manager.ready_for_call_to_action():
+                follow_up_questions[2] ="click to discover our limited-time promotion"
 
             conversation_response = ConversationResponse(response, follow_up_questions)
 
