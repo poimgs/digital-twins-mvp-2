@@ -38,13 +38,7 @@ narrative-digital-twin/
    - Add your OpenAI API key
    - Add your Supabase URL and API key
 
-3. **Start Terminal Chat**
-
-   ```bash
-   python terminal_app/chat.py
-   ```
-
-4. **Set Up Telegram Bot (Optional)**
+3. **Set Up Telegram Bot (Optional)**
 
    - Create a Telegram bot via [@BotFather](https://t.me/botfather)
    - Get your bot token
@@ -54,7 +48,7 @@ narrative-digital-twin/
    python telegram_app/telegram_bot.py <bot_id> <telegram_bot_token>
    ```
 
-5. **Telegram Bot Management Script**
+4. **Telegram Bot Management Script**
 
    Use the provided script to easily start and stop multiple Telegram bots:
 
