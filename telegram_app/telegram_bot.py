@@ -189,6 +189,9 @@ class TelegramDigitalTwin:
 
         welcome_text = f"{self.bot_info.welcome_message}"
         await update.message.reply_text(welcome_text)
+
+        # Send and pin the instruction message
+        await self._send_and_pin_instruction_message(update, context)
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command."""
@@ -222,6 +225,9 @@ class TelegramDigitalTwin:
                 await update.message.reply_text("✅ Conversation history has been reset!")
                 welcome_text = f"{self.bot_info.welcome_message}"
                 await update.message.reply_text(welcome_text)
+
+                # Send and pin the instruction message
+                await self._send_and_pin_instruction_message(update, context)
             else:
                 await update.message.reply_text("❌ Failed to reset conversation history.")
         except Exception as e:
@@ -336,6 +342,35 @@ class TelegramDigitalTwin:
             text="💡 You might also ask:",
             reply_markup=reply_markup
         )
+
+    async def _send_and_pin_instruction_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Send and pin the instruction message."""
+        if not update.effective_chat:
+            logger.warning("Cannot send and pin instruction message without effective_chat")
+            return
+
+        try:
+            chat_id = update.effective_chat.id
+            instruction_text = "You can also post your own question to me on the chat"
+
+            # Send the instruction message
+            message = await context.bot.send_message(
+                chat_id=chat_id,
+                text=instruction_text
+            )
+
+            # Pin the message
+            await context.bot.pin_chat_message(
+                chat_id=chat_id,
+                message_id=message.message_id,
+                disable_notification=True  # Don't notify users about the pin
+            )
+
+            logger.info(f"Pinned instruction message in chat {chat_id}")
+
+        except Exception as e:
+            logger.error(f"Error sending and pinning instruction message: {e}")
+            # Don't raise the exception as this is not critical functionality
 
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle callback queries from inline keyboard buttons with task tracking."""
