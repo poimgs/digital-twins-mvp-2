@@ -95,6 +95,18 @@ CREATE TABLE IF NOT EXISTS token_usage (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Content categories table - stores different types of content (menu, products, catering, etc.)
+CREATE TABLE IF NOT EXISTS content_categories (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
+    category_type VARCHAR(50) NOT NULL CHECK (category_type IN ('stories', 'daily_food_menu', 'products', 'catering')),
+    title VARCHAR(500),
+    content TEXT NOT NULL,
+    summary TEXT, -- Brief summary for content selection
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_stories_bot_id ON stories(bot_id);
 CREATE INDEX IF NOT EXISTS idx_story_analysis_story_id ON story_analysis(story_id);
@@ -102,3 +114,5 @@ CREATE INDEX IF NOT EXISTS idx_conversation_history_chat_id ON conversation_hist
 CREATE INDEX IF NOT EXISTS idx_conversation_history_chat_conversation ON conversation_history(chat_id, conversation_number);
 CREATE INDEX IF NOT EXISTS idx_conversation_state_chat_id ON conversation_state(chat_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_state_chat_conversation ON conversation_state(chat_id, conversation_number);
+CREATE INDEX IF NOT EXISTS idx_content_categories_bot_id ON content_categories(bot_id);
+CREATE INDEX IF NOT EXISTS idx_content_categories_bot_category ON content_categories(bot_id, category_type);

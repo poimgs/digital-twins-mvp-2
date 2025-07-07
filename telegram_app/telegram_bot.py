@@ -345,15 +345,22 @@ class TelegramDigitalTwin:
 
     async def _send_and_pin_instruction_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Send and pin the instruction message."""
+        # TODO: Unpin all previously pinned messages (if any)
         if not update.effective_chat:
             logger.warning("Cannot send and pin instruction message without effective_chat")
             return
 
         try:
             chat_id = update.effective_chat.id
-            instruction_text = "You can also post your own question to me on the chat"
+            instruction_text = "While conversing with me, you will receive prompts for follow-up questions"
 
             # Send the instruction message
+            message = await context.bot.send_message(
+                chat_id=chat_id,
+                text=instruction_text
+            )
+            
+            instruction_text = "If you like, you may post your own question to me on the chat"
             message = await context.bot.send_message(
                 chat_id=chat_id,
                 text=instruction_text

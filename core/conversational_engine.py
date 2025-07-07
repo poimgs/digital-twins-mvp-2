@@ -10,7 +10,8 @@ import random
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
 from core.conversation_manager import ConversationManager
-from core.models import LLMMessage, ConversationResponse, StoryWithAnalysis, generate_telegram_chat_id, generate_terminal_chat_id
+from core.models import LLMMessage, ConversationResponse, StoryWithAnalysis, ContentCategoryType, generate_telegram_chat_id, generate_terminal_chat_id
+from core.content_retrieval_manager import ContentItem
 
 logger = logging.getLogger(__name__)
 
@@ -210,26 +211,91 @@ Each question should be up to 7 words long and engaging.
 - NO EXCEPTIONS - the first question MUST move to the next warmth level
 - Failure to follow this progression breaks the conversation flow"""
 
+    def _get_content_category_conversation_prompt(
+        self,
+        warmth_guidance: str,
+        relevant_content: Optional[ContentItem],
+        other_category_summaries: Dict[ContentCategoryType, str],
+        conversation_summary: str
+    ) -> str:
+        """
+        Generate system prompt for conversations with content categories.
+        """
+
+        # Create content context
+        if relevant_content:
+            content_context = f"""
+CURRENT RELEVANT CONTENT ({relevant_content.category_type.value.upper()}):
+{relevant_content.content}
+
+OTHER AVAILABLE CATEGORIES:
+"""
+            for category_type, summaries in other_category_summaries.items():
+                if category_type != relevant_content.category_type:
+                    content_context += f"\n{category_type.value.upper()}:\n{summaries}\n"
+        else:
+            content_context = """
+OTHER AVAILABLE CATEGORIES:
+"""
+            for category_type, summaries in other_category_summaries.items():
+                content_context += f"\n{category_type.value.upper()}:\n{summaries}\n"
+
+        return f"""You are an expert at generating follow-up questions for the user to ask the digital twin.
+
+Your task is to generate exactly 3 follow-up questions based on content categories.
+
+DIGITAL TWIN PERSONALITY PROFILE:
+{self.bot_personality}
+
+WARMTH GUIDANCE FOR CURRENT CATEGORY QUESTIONS:
+{warmth_guidance}
+
+{content_context}
+
+CONVERSATION SUMMARY:
+{conversation_summary}
+
+🚨 CRITICAL REQUIREMENTS FOR CONTENT CATEGORY CONVERSATIONS:
+
+1. ALL QUESTIONS MUST BE ABOUT THE DIGITAL TWIN:
+   - Never ask about other people mentioned in content
+   - Always focus on the digital twin's experiences, knowledge, and perspectives
+   - If content mentions other people, ask about how the digital twin relates to it
+
+2. QUESTION STRUCTURE:
+   - 1st question: Focus on the CURRENT CATEGORY using warmth guidance
+   - 2nd question: Focus on a DIFFERENT CATEGORY from available categories
+   - 3rd question: Focus on another DIFFERENT CATEGORY from available categories
+
+3. CATEGORY FOCUS EXAMPLES:
+   - Stories: Personal experiences, memories, feelings
+   - Daily Food Menu: Food knowledge, culinary experiences, taste preferences
+   - Products: Product knowledge, brand values, coffee expertise
+   - Catering: Service experience, event knowledge, hospitality insights
+
+Each question should be up to 7 words long and engaging.
+
+- For the 1st question: {warmth_guidance}
+- For 2nd and 3rd questions: Use any appropriate question structure that fits the category"""
+
     def _generate_follow_up_questions(
         self,
         user_message: str,
         bot_response: str,
         conversation_summary: str,
-        relevant_story: Optional[StoryWithAnalysis],
-        other_story_summaries: str,
+        relevant_content: Optional[ContentItem],
         warmth_guidance: str,
         conversation_history: List[LLMMessage],
         conversation_manager
     ) -> List[str]:
         """
-        Generate three follow-up questions using a dedicated LLM call.
+        Generate three follow-up questions using a dedicated LLM call with content categories.
 
         Args:
             user_message: The user's original message
             bot_response: The bot's response to the user
             conversation_summary: Summary of the conversation
-            relevant_story: The current relevant story
-            other_story_summaries: Summaries of other available stories
+            relevant_content: The current relevant content item
             warmth_guidance: Guidance for warmth-based questions
             conversation_history: Full conversation history for context
 
@@ -240,8 +306,25 @@ Each question should be up to 7 words long and engaging.
             # Detect if this is an initial conversation (first few exchanges)
             is_initial_conversation = len(conversation_history) <= 2 or not conversation_summary.strip()
 
-            system_prompt = self._get_ongoing_conversation_prompt(
-                warmth_guidance, relevant_story, other_story_summaries, conversation_summary
+            # TODO: REFACTOR - Should not retrieve content_retrieval_manager from conversation manager and run functions from there
+            # Get summaries for other categories
+            other_category_summaries = {}
+            if relevant_content:
+                # Get random categories for follow-up questions
+                random_categories = conversation_manager.content_retrieval_manager.get_random_categories_for_follow_up(
+                    relevant_content.category_type, count=2
+                )
+                for category in random_categories:
+                    other_category_summaries[category] = conversation_manager.content_retrieval_manager.get_content_summaries_by_category(category)
+            else:
+                # If no relevant content, get summaries for all categories
+                all_categories = [ContentCategoryType.STORIES, ContentCategoryType.DAILY_FOOD_MENU,
+                                ContentCategoryType.PRODUCTS, ContentCategoryType.CATERING]
+                for category in all_categories:
+                    other_category_summaries[category] = conversation_manager.content_retrieval_manager.get_content_summaries_by_category(category)
+
+            system_prompt = self._get_content_category_conversation_prompt(
+                warmth_guidance, relevant_content, other_category_summaries, conversation_summary
             )
 
             # Build messages for LLM using conversation history instead of just current exchange
@@ -297,20 +380,20 @@ BOT RESPONSE: {bot_response}
                 questions_schema = {
                     "type": "object",
                     "properties": {
-                        "current_story_question": {
+                        "current_category_question": {
                             "type": "string",
-                            "description": "Question focusing on current story with deeper engagement"
+                            "description": "Question focusing on current content category with deeper engagement"
                         },
-                        "other_story_question": {
+                        "other_category_question_1": {
                             "type": "string",
-                            "description": "Question nudging toward a different story"
+                            "description": "Question focusing on a different content category"
                         },
-                        "llm_choice_question": {
+                        "other_category_question_2": {
                             "type": "string",
-                            "description": "Any engaging question fitting conversation flow"
+                            "description": "Question focusing on another different content category"
                         }
                     },
-                    "required": ["current_story_question", "other_story_question", "llm_choice_question"],
+                    "required": ["current_category_question", "other_category_question_1", "other_category_question_2"],
                     "additionalProperties": False
                 }
 
@@ -325,9 +408,9 @@ BOT RESPONSE: {bot_response}
 
                 # Construct the questions array for ongoing conversations
                 follow_up_questions = [
-                    questions_response.get("current_story_question", "Tell me more about this story"),
-                    questions_response.get("other_story_question", "What about your other experiences?"),
-                    questions_response.get("llm_choice_question", "Tell me more")
+                    questions_response.get("current_category_question", "Tell me more about this"),
+                    questions_response.get("other_category_question_1", "What about your other experiences?"),
+                    questions_response.get("other_category_question_2", "Tell me more")
                 ]
 
             return follow_up_questions
@@ -366,40 +449,35 @@ BOT RESPONSE: {bot_response}
             conversation_manager = self.get_or_create_conversation_manager(final_chat_id, bot_id)
             conversation_manager.add_user_message(user_message)
 
-            # Get bot-specific stories
-            stories = supabase_client.get_stories_with_analysis(bot_id)
-            story_summaries = ""
-            for story in stories:
-                story_summaries += f"{story.summary}\n\n"
-            relevant_story = conversation_manager.find_relevant_story(stories)
+            # Get relevant content from all categories
+            relevant_content = conversation_manager.find_relevant_content()
             conversation_history = conversation_manager.get_conversation_history_for_llm()
 
             # Get guidance for question warmth level
             warmth_guidance = conversation_manager.get_next_question_guidance()
-            
-            # story context
-            if relevant_story:
-                story_context = f"""
-RELEVANT STORY:
-{relevant_story.content if relevant_story else 'No relevant story found'}
 
-SUMMARY OF ALL STORIES:
-{story_summaries}
+            # content context
+            if relevant_content:
+                content_context = f"""
+RELEVANT CONTENT ({relevant_content.category_type.value.upper()}):
+{relevant_content.content}
 """
             else:
-                story_context = f"""
-SUMMARY OF ALL STORIES:
-{story_summaries}               
+                content_context = """
+No specific content selected for this conversation.
 """
 
-            system_prompt = f"""You are a digital twin created from personal stories and experiences.
-Respond as if you are the person whose stories were analyzed, maintaining their personality, communication style, and emotional patterns.
+            system_prompt = f"""You are a digital twin with knowledge across multiple content areas.
+Respond as if you are the person whose content was analyzed, maintaining their personality, communication style, and emotional patterns.
 Use the conversation context to provide natural, contextually-aware responses that build on the ongoing dialogue.
 
-Ensure that you keep your response to the user's message brief and to the point. Focus on sharing stories and personal insights.
+You have knowledge about:
+- Personal stories and experiences
+- Daily food menu and culinary heritage
+- Coffee products and brand values
+- Catering services and hospitality
 
-If the conversation is moving away from stories and experiences, guide the conversation back to share stories and insights.
-Do not deviate away from personal stories and experiences.
+Ensure that you keep your response to the user's message brief and to the point. Focus on sharing relevant knowledge and personal insights.
 
 CONVERSATION CONTEXT:
 {conversation_manager.summary}
@@ -407,7 +485,7 @@ CONVERSATION CONTEXT:
 PERSONALITY PROFILE:
 {self.bot_personality}
 
-{story_context}
+{content_context}
             """
             
             response = ""
@@ -427,21 +505,12 @@ PERSONALITY PROFILE:
                     conversation_number=conversation_manager.conversation_number
                 )
 
-            # Second LLM: Generate follow-up questions based on the response and context
-            other_stories = [story for story in stories if story != relevant_story] if relevant_story else stories
-            other_story_summaries = ""
-            if other_stories:
-                # Randomly select up to 3 other stories for variety
-                selected_stories = random.sample(other_stories, min(3, len(other_stories)))
-                for story in selected_stories:
-                    other_story_summaries += f"- {story.summary}\n"
-
+            # Second LLM: Generate follow-up questions based on the response and content categories
             follow_up_questions = self._generate_follow_up_questions(
                 user_message=user_message,
                 bot_response=response,
                 conversation_summary=conversation_manager.summary,
-                relevant_story=relevant_story,
-                other_story_summaries=other_story_summaries,
+                relevant_content=relevant_content,
                 warmth_guidance=warmth_guidance,
                 conversation_history=conversation_history,
                 conversation_manager=conversation_manager

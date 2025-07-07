@@ -10,7 +10,8 @@ from supabase import create_client, Client
 from config.settings import settings
 from core.models import (
     Bot, Story, StoryAnalysis, PersonalityProfile, ConversationMessage, LLMMessage, ConversationState,
-    StoryWithAnalysis, TokenUsage, stories_from_dict_list, story_analyses_from_dict_list,
+    StoryWithAnalysis, TokenUsage, ContentCategory, ContentCategoryType,
+    stories_from_dict_list, story_analyses_from_dict_list, content_categories_from_dict_list,
     conversation_messages_from_dict_list, conversation_messages_to_llm_format,
     bots_from_dict_list, token_usage_from_dict_list
 )
@@ -286,7 +287,75 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Error retrieving stories with analysis: {e}")
             raise
-    
+
+    # Content categories table operations
+    def insert_content_category(self, content_category: ContentCategory) -> ContentCategory:
+        """
+        Insert a content category into the database.
+
+        Args:
+            content_category: ContentCategory instance to insert
+
+        Returns:
+            The inserted ContentCategory instance
+        """
+        try:
+            content_dict = content_category.to_dict()
+            # Remove None values for insert
+            content_dict = {k: v for k, v in content_dict.items() if v is not None}
+
+            result = self.client.table("content_categories").insert(content_dict).execute()
+            if result.data:
+                return ContentCategory.from_dict(result.data[0])
+            else:
+                return content_category
+        except Exception as e:
+            logger.error(f"Error inserting content category: {e}")
+            raise
+
+    def get_content_categories(self, bot_id: Optional[str] = None, category_type: Optional[ContentCategoryType] = None) -> List[ContentCategory]:
+        """
+        Retrieve content categories from the database.
+
+        Args:
+            bot_id: Optional bot ID to filter content categories
+            category_type: Optional category type to filter content categories
+
+        Returns:
+            List of ContentCategory instances
+        """
+        try:
+            query = self.client.table("content_categories").select("*")
+            if bot_id:
+                query = query.eq("bot_id", bot_id)
+            if category_type:
+                query = query.eq("category_type", category_type.value)
+
+            result = query.execute()
+            return content_categories_from_dict_list(result.data)
+        except Exception as e:
+            logger.error(f"Error retrieving content categories: {e}")
+            raise
+
+    def get_content_category_by_id(self, content_id: str) -> Optional[ContentCategory]:
+        """
+        Retrieve a specific content category by ID.
+
+        Args:
+            content_id: The content category ID
+
+        Returns:
+            ContentCategory instance or None if not found
+        """
+        try:
+            result = self.client.table("content_categories").select("*").eq("id", content_id).execute()
+            if result.data:
+                return ContentCategory.from_dict(result.data[0])
+            return None
+        except Exception as e:
+            logger.error(f"Error retrieving content category: {e}")
+            raise
+
     # Personality profiles table operations
     def insert_personality_profile(self, profile: PersonalityProfile) -> PersonalityProfile:
         """

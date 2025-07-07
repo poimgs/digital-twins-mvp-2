@@ -6,6 +6,7 @@ from core.supabase_client import supabase_client
 from uuid import UUID
 from core.models import ConversationMessage, LLMMessage, ConversationState, StoryWithAnalysis, WarmthLevel
 from core.story_retrieval_manager import StoryRetrievalManager
+from core.content_retrieval_manager import ContentRetrievalManager, ContentItem
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class ConversationManager:
         self.conversation_number = supabase_client.get_current_conversation_number(chat_id)
         
         self.story_retrieval_manager = StoryRetrievalManager(chat_id, bot_id, self.conversation_number)
+        self.content_retrieval_manager = ContentRetrievalManager(chat_id, bot_id, self.conversation_number)
 
         # Load from database or initialize with defaults
         try:
@@ -213,7 +215,23 @@ LLM response: {llm_response}"""
         except Exception as e:
             logger.error(f"Error finding relevant stories: {e}")
             return None
-        
+
+    def find_relevant_content(self) -> Optional[ContentItem]:
+        """
+        Find the most relevant content item using the content retrieval manager.
+
+        Returns:
+            Most relevant ContentItem instance, or None if no content is relevant
+        """
+        try:
+            return self.content_retrieval_manager.find_relevant_content(
+                conversation_summary=self.summary
+            )
+
+        except Exception as e:
+            logger.error(f"Error finding relevant content: {e}")
+            return None
+
     def analyze_message_warmth_regex(self, message: str) -> int:
         """
         Analyze a message using regex patterns to determine warmth level for warmth measurement.
