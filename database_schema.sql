@@ -99,10 +99,20 @@ CREATE TABLE IF NOT EXISTS token_usage (
 CREATE TABLE IF NOT EXISTS content_categories (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
-    category_type VARCHAR(50) NOT NULL CHECK (category_type IN ('stories', 'daily_food_menu', 'products', 'catering')),
+    category_type VARCHAR(50) NOT NULL,
     title VARCHAR(500),
     content TEXT NOT NULL,
     summary TEXT, -- Brief summary for content selection
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Initial questions table - stores predefined initial questions for each bot and category
+CREATE TABLE IF NOT EXISTS initial_questions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
+    category_type VARCHAR(50) NOT NULL,
+    question TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -116,3 +126,5 @@ CREATE INDEX IF NOT EXISTS idx_conversation_state_chat_id ON conversation_state(
 CREATE INDEX IF NOT EXISTS idx_conversation_state_chat_conversation ON conversation_state(chat_id, conversation_number);
 CREATE INDEX IF NOT EXISTS idx_content_categories_bot_id ON content_categories(bot_id);
 CREATE INDEX IF NOT EXISTS idx_content_categories_bot_category ON content_categories(bot_id, category_type);
+CREATE INDEX IF NOT EXISTS idx_initial_questions_bot_id ON initial_questions(bot_id);
+CREATE INDEX IF NOT EXISTS idx_initial_questions_bot_category ON initial_questions(bot_id, category_type);

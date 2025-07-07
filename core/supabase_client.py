@@ -10,9 +10,9 @@ from supabase import create_client, Client
 from config.settings import settings
 from core.models import (
     Bot, Story, StoryAnalysis, PersonalityProfile, ConversationMessage, LLMMessage, ConversationState,
-    StoryWithAnalysis, TokenUsage, ContentCategory, ContentCategoryType,
+    StoryWithAnalysis, TokenUsage, ContentCategory, InitialQuestion,
     stories_from_dict_list, story_analyses_from_dict_list, content_categories_from_dict_list,
-    conversation_messages_from_dict_list, conversation_messages_to_llm_format,
+    initial_questions_from_dict_list, conversation_messages_from_dict_list, conversation_messages_to_llm_format,
     bots_from_dict_list, token_usage_from_dict_list
 )
 
@@ -313,7 +313,7 @@ class SupabaseClient:
             logger.error(f"Error inserting content category: {e}")
             raise
 
-    def get_content_categories(self, bot_id: Optional[str] = None, category_type: Optional[ContentCategoryType] = None) -> List[ContentCategory]:
+    def get_content_categories(self, bot_id: Optional[str] = None, category_type: Optional[str] = None) -> List[ContentCategory]:
         """
         Retrieve content categories from the database.
 
@@ -329,7 +329,7 @@ class SupabaseClient:
             if bot_id:
                 query = query.eq("bot_id", bot_id)
             if category_type:
-                query = query.eq("category_type", category_type.value)
+                query = query.eq("category_type", category_type)
 
             result = query.execute()
             return content_categories_from_dict_list(result.data)
@@ -354,6 +354,79 @@ class SupabaseClient:
             return None
         except Exception as e:
             logger.error(f"Error retrieving content category: {e}")
+            raise
+
+    # Initial questions table operations
+    def insert_initial_question(self, initial_question: InitialQuestion) -> InitialQuestion:
+        """
+        Insert an initial question into the database.
+
+        Args:
+            initial_question: InitialQuestion instance to insert
+
+        Returns:
+            The inserted InitialQuestion instance
+        """
+        try:
+            question_dict = initial_question.to_dict()
+            # Remove None values for insert
+            question_dict = {k: v for k, v in question_dict.items() if v is not None}
+
+            result = self.client.table("initial_questions").insert(question_dict).execute()
+            if result.data:
+                return InitialQuestion.from_dict(result.data[0])
+            else:
+                return initial_question
+        except Exception as e:
+            logger.error(f"Error inserting initial question: {e}")
+            raise
+
+    def get_initial_questions(self, bot_id: Optional[str] = None, category_type: Optional[str] = None) -> List[InitialQuestion]:
+        """
+        Retrieve initial questions from the database.
+
+        Args:
+            bot_id: Optional bot ID to filter initial questions
+            category_type: Optional category type to filter initial questions
+
+        Returns:
+            List of InitialQuestion instances
+        """
+        try:
+            query = self.client.table("initial_questions").select("*")
+            if bot_id:
+                query = query.eq("bot_id", bot_id)
+            if category_type:
+                query = query.eq("category_type", category_type)
+
+            result = query.execute()
+            return initial_questions_from_dict_list(result.data)
+        except Exception as e:
+            logger.error(f"Error retrieving initial questions: {e}")
+            raise
+
+    def get_initial_questions_by_bot(self, bot_id: str) -> Dict[str, List[InitialQuestion]]:
+        """
+        Retrieve initial questions grouped by category type for a specific bot.
+
+        Args:
+            bot_id: The bot ID
+
+        Returns:
+            Dictionary mapping category types to lists of initial questions
+        """
+        try:
+            questions = self.get_initial_questions(bot_id=bot_id)
+            grouped_questions = {}
+
+            for question in questions:
+                if question.category_type not in grouped_questions:
+                    grouped_questions[question.category_type] = []
+                grouped_questions[question.category_type].append(question)
+
+            return grouped_questions
+        except Exception as e:
+            logger.error(f"Error retrieving grouped initial questions: {e}")
             raise
 
     # Personality profiles table operations

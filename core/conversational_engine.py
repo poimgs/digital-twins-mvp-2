@@ -10,7 +10,7 @@ import random
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
 from core.conversation_manager import ConversationManager
-from core.models import LLMMessage, ConversationResponse, StoryWithAnalysis, ContentCategoryType, generate_telegram_chat_id, generate_terminal_chat_id
+from core.models import LLMMessage, ConversationResponse, StoryWithAnalysis, generate_telegram_chat_id, generate_terminal_chat_id
 from core.content_retrieval_manager import ContentItem
 
 logger = logging.getLogger(__name__)
@@ -215,7 +215,7 @@ Each question should be up to 7 words long and engaging.
         self,
         warmth_guidance: str,
         relevant_content: Optional[ContentItem],
-        other_category_summaries: Dict[ContentCategoryType, str],
+        other_category_summaries: Dict[str, str],
         conversation_summary: str
     ) -> str:
         """
@@ -225,20 +225,20 @@ Each question should be up to 7 words long and engaging.
         # Create content context
         if relevant_content:
             content_context = f"""
-CURRENT RELEVANT CONTENT ({relevant_content.category_type.value.upper()}):
+CURRENT RELEVANT CONTENT ({relevant_content.category_type.upper()}):
 {relevant_content.content}
 
 OTHER AVAILABLE CATEGORIES:
 """
             for category_type, summaries in other_category_summaries.items():
                 if category_type != relevant_content.category_type:
-                    content_context += f"\n{category_type.value.upper()}:\n{summaries}\n"
+                    content_context += f"\n{category_type.upper()}:\n{summaries}\n"
         else:
             content_context = """
 OTHER AVAILABLE CATEGORIES:
 """
             for category_type, summaries in other_category_summaries.items():
-                content_context += f"\n{category_type.value.upper()}:\n{summaries}\n"
+                content_context += f"\n{category_type.upper()}:\n{summaries}\n"
 
         return f"""You are an expert at generating follow-up questions for the user to ask the digital twin.
 
@@ -278,6 +278,80 @@ Each question should be up to 7 words long and engaging.
 - For the 1st question: {warmth_guidance}
 - For 2nd and 3rd questions: Use any appropriate question structure that fits the category"""
 
+    # Get initial category questions and save into database
+    # This is so that the telegram bot can use this function to get initial category questions, and ensure that when user clicks on one, the correct question is picked up
+    def get_initial_category_questions(self, bot_id: str, chat_id: Optional[str] = None, telegram_chat_id: Optional[int] = None) -> List[str]:
+        """
+        Get initial category questions and save them into database.
+        """
+        initial_questions = self._get_initial_category_questions()
+        
+        # Determine chat_id based on input
+        if chat_id:
+            final_chat_id = chat_id
+        elif telegram_chat_id is not None:
+            final_chat_id = generate_telegram_chat_id(bot_id, telegram_chat_id)
+        else:
+            final_chat_id = generate_terminal_chat_id(bot_id)
+
+        conversation_manager = self.get_or_create_conversation_manager(final_chat_id, bot_id)
+        conversation_manager.store_follow_up_questions(initial_questions)
+            
+        return initial_questions
+
+    def _get_initial_category_questions(self) -> List[str]:
+        """
+        Get initial questions from database based on content categories.
+        Returns 3 questions, each focusing on a different category.
+        """
+        import random
+
+        try:
+            # Get all initial questions for this bot grouped by category
+            grouped_questions = supabase_client.get_initial_questions_by_bot(self.bot_id)
+
+            if not grouped_questions:
+                # Fallback to default questions if none found in database
+                logger.warning(f"No initial questions found for bot {self.bot_id}, using defaults")
+                return [
+                    "What experiences shaped you most?",
+                    "What matters most to you?",
+                    "What would you like to share?"
+                ]
+
+            # Select one question from each available category randomly
+            questions = []
+            for category_type, question_list in grouped_questions.items():
+                if question_list:  # Make sure the category has questions
+                    selected_question = random.choice(question_list)
+                    questions.append(selected_question.question)
+
+            # If we have fewer than 3 questions, pad with available questions
+            while len(questions) < 3 and any(grouped_questions.values()):
+                for category_type, question_list in grouped_questions.items():
+                    if len(questions) >= 3:
+                        break
+                    if question_list:
+                        # Pick a random question that we haven't used yet
+                        available_questions = [q.question for q in question_list if q.question not in questions]
+                        if available_questions:
+                            questions.append(random.choice(available_questions))
+
+            # Shuffle the order of questions so they don't always appear in the same sequence
+            random.shuffle(questions)
+
+            # Ensure we return exactly 3 questions
+            return questions[:3] if len(questions) >= 3 else questions
+
+        except Exception as e:
+            logger.error(f"Error retrieving initial questions from database: {e}")
+            # Fallback to default questions
+            return [
+                "What experiences shaped you most?",
+                "What matters most to you?",
+                "What would you like to share?"
+            ]
+
     def _generate_follow_up_questions(
         self,
         user_message: str,
@@ -303,9 +377,6 @@ Each question should be up to 7 words long and engaging.
             List of exactly 3 follow-up questions
         """
         try:
-            # Detect if this is an initial conversation (first few exchanges)
-            is_initial_conversation = len(conversation_history) <= 2 or not conversation_summary.strip()
-
             # TODO: REFACTOR - Should not retrieve content_retrieval_manager from conversation manager and run functions from there
             # Get summaries for other categories
             other_category_summaries = {}
@@ -318,8 +389,7 @@ Each question should be up to 7 words long and engaging.
                     other_category_summaries[category] = conversation_manager.content_retrieval_manager.get_content_summaries_by_category(category)
             else:
                 # If no relevant content, get summaries for all categories
-                all_categories = [ContentCategoryType.STORIES, ContentCategoryType.DAILY_FOOD_MENU,
-                                ContentCategoryType.PRODUCTS, ContentCategoryType.CATERING]
+                all_categories = ["stories", "daily_food_menu", "products", "catering"]
                 for category in all_categories:
                     other_category_summaries[category] = conversation_manager.content_retrieval_manager.get_content_summaries_by_category(category)
 
@@ -339,81 +409,41 @@ BOT RESPONSE: {bot_response}
             )
             # Add the bot's response as the final assistant message
 
-            # Use different schemas and response handling for initial vs ongoing conversations
-            if is_initial_conversation:
-                questions_schema = {
-                    "type": "object",
-                    "properties": {
-                        "general_experience_question": {
-                            "type": "string",
-                            "description": "Broad question about digital twin's life or experiences"
-                        },
-                        "personality_values_question": {
-                            "type": "string",
-                            "description": "Question about digital twin's personality, values, or perspectives"
-                        },
-                        "open_exploration_question": {
-                            "type": "string",
-                            "description": "Open-ended question inviting broad exploration"
-                        }
+            questions_schema = {
+                "type": "object",
+                "properties": {
+                    "current_category_question": {
+                        "type": "string",
+                        "description": "Question focusing on current content category with deeper engagement"
                     },
-                    "required": ["general_experience_question", "personality_values_question", "open_exploration_question"],
-                    "additionalProperties": False
-                }
-
-                questions_response = llm_service.generate_structured_response_from_llm_messages(
-                    messages=messages,
-                    schema=questions_schema,
-                    operation_type="follow_up_questions",
-                    bot_id=str(self.bot_id),
-                    chat_id=conversation_manager.chat_id,
-                    conversation_number=conversation_manager.conversation_number
-                )
-
-                # Construct the questions array for initial conversations
-                follow_up_questions = [
-                    questions_response.get("general_experience_question", "What experiences shaped you most?"),
-                    questions_response.get("personality_values_question", "What matters most to you?"),
-                    questions_response.get("open_exploration_question", "What would you like to share?")
-                ]
-            else:
-                questions_schema = {
-                    "type": "object",
-                    "properties": {
-                        "current_category_question": {
-                            "type": "string",
-                            "description": "Question focusing on current content category with deeper engagement"
-                        },
-                        "other_category_question_1": {
-                            "type": "string",
-                            "description": "Question focusing on a different content category"
-                        },
-                        "other_category_question_2": {
-                            "type": "string",
-                            "description": "Question focusing on another different content category"
-                        }
+                    "other_category_question_1": {
+                        "type": "string",
+                        "description": "Question focusing on a different content category"
                     },
-                    "required": ["current_category_question", "other_category_question_1", "other_category_question_2"],
-                    "additionalProperties": False
-                }
+                    "other_category_question_2": {
+                        "type": "string",
+                        "description": "Question focusing on another different content category"
+                    }
+                },
+                "required": ["current_category_question", "other_category_question_1", "other_category_question_2"],
+                "additionalProperties": False
+            }
 
-                questions_response = llm_service.generate_structured_response_from_llm_messages(
-                    messages=messages,
-                    schema=questions_schema,
-                    operation_type="follow_up_questions",
-                    bot_id=str(self.bot_id),
-                    chat_id=conversation_manager.chat_id,
-                    conversation_number=conversation_manager.conversation_number
-                )
+            questions_response = llm_service.generate_structured_response_from_llm_messages(
+                messages=messages,
+                schema=questions_schema,
+                operation_type="follow_up_questions",
+                bot_id=str(self.bot_id),
+                chat_id=conversation_manager.chat_id,
+                conversation_number=conversation_manager.conversation_number
+            )
 
-                # Construct the questions array for ongoing conversations
-                follow_up_questions = [
-                    questions_response.get("current_category_question", "Tell me more about this"),
-                    questions_response.get("other_category_question_1", "What about your other experiences?"),
-                    questions_response.get("other_category_question_2", "Tell me more")
-                ]
-
-            return follow_up_questions
+            # Construct the questions array for ongoing conversations
+            return [
+                questions_response.get("current_category_question", "Tell me more about this"),
+                questions_response.get("other_category_question_1", "What about your other experiences?"),
+                questions_response.get("other_category_question_2", "Tell me more")
+            ]
 
         except Exception as e:
             logger.error(f"Error generating follow-up questions: {e}")
@@ -459,7 +489,7 @@ BOT RESPONSE: {bot_response}
             # content context
             if relevant_content:
                 content_context = f"""
-RELEVANT CONTENT ({relevant_content.category_type.value.upper()}):
+RELEVANT CONTENT ({relevant_content.category_type.upper()}):
 {relevant_content.content}
 """
             else:

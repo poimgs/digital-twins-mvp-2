@@ -103,14 +103,11 @@ LLM response: {llm_response}"""
             logger.error(f"Error summarizing conversation: {e}")
             return self.summary
 
-    def add_user_message(self, content: str):
+    def ensure_conversation_state_exists(self):
         """
-        Add a user message and update conversational state.
-
-        Args:
-            content: The user's message content
+        Ensure that conversation state exists in the database.
+        Creates it if it doesn't exist yet.
         """
-        # Create conversation state if this is the first message in a new conversation
         if hasattr(self, '_state_needs_creation') and self._state_needs_creation:
             try:
                 from core.models import ConversationState
@@ -129,6 +126,17 @@ LLM response: {llm_response}"""
                 logger.info(f"Created conversation state for conversation {self.conversation_number}")
             except Exception as e:
                 logger.error(f"Error creating conversation state: {e}")
+                raise
+
+    def add_user_message(self, content: str):
+        """
+        Add a user message and update conversational state.
+
+        Args:
+            content: The user's message content
+        """
+        # Create conversation state if this is the first message in a new conversation
+        self.ensure_conversation_state_exists()
 
         # Store message
         message = ConversationMessage(
@@ -534,6 +542,9 @@ PURPOSE: Encourage reflection on possibilities and deeper meaning"""
             True if storage was successful
         """
         try:
+            # Ensure conversation state exists before updating it
+            self.ensure_conversation_state_exists()
+
             # Update the conversation state with the new follow-up questions
             supabase_client.update_conversation_state(
                 chat_id=self.chat_id,

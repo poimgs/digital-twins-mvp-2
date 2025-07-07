@@ -186,12 +186,22 @@ class TelegramDigitalTwin:
         if not self.bot_info:
             await update.message.reply_text("❌ Bot configuration error. Please contact support.")
             return
+        
+        if not update.effective_chat:
+            logger.warning("Received start command without effective_chat")
+            await update.message.reply_text("❌ Unable to identify chat.")
+            return
+        
+        telegram_chat_id = update.effective_chat.id
 
         welcome_text = f"{self.bot_info.welcome_message}"
         await update.message.reply_text(welcome_text)
 
         # Send and pin the instruction message
         await self._send_and_pin_instruction_message(update, context)
+
+        follow_up_questions = self.engine.get_initial_category_questions(bot_id=self.bot_id, telegram_chat_id=telegram_chat_id)
+        await self._send_follow_up_questions(update, follow_up_questions)
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command."""
@@ -228,6 +238,9 @@ class TelegramDigitalTwin:
 
                 # Send and pin the instruction message
                 await self._send_and_pin_instruction_message(update, context)
+                
+                follow_up_questions = self.engine.get_initial_category_questions(bot_id=self.bot_id, telegram_chat_id=telegram_chat_id)
+                await self._send_follow_up_questions(update, follow_up_questions)
             else:
                 await update.message.reply_text("❌ Failed to reset conversation history.")
         except Exception as e:
@@ -351,16 +364,8 @@ class TelegramDigitalTwin:
             return
 
         try:
-            chat_id = update.effective_chat.id
-            instruction_text = "While conversing with me, you will receive prompts for follow-up questions"
-
-            # Send the instruction message
-            message = await context.bot.send_message(
-                chat_id=chat_id,
-                text=instruction_text
-            )
-            
-            instruction_text = "If you like, you may post your own question to me on the chat"
+            chat_id = update.effective_chat.id           
+            instruction_text = "Feel free to ask your own question to me on the chat"
             message = await context.bot.send_message(
                 chat_id=chat_id,
                 text=instruction_text

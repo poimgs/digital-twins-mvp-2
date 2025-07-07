@@ -278,7 +278,7 @@ class ContentCategory:
 
     id: UUID = field(default_factory=uuid.uuid4)
     bot_id: UUID = field(default_factory=uuid.uuid4)
-    category_type: ContentCategoryType = ContentCategoryType.STORIES
+    category_type: str = "stories"
     title: Optional[str] = None
     content: str = ""
     summary: Optional[str] = None
@@ -301,10 +301,7 @@ class ContentCategory:
         elif bot_id is None:
             bot_id = uuid.uuid4()
 
-        # Handle category type conversion
         category_type = data.get('category_type', 'stories')
-        if isinstance(category_type, str):
-            category_type = ContentCategoryType(category_type)
 
         # Handle datetime conversion
         created_at = data.get('created_at')
@@ -331,13 +328,73 @@ class ContentCategory:
         return {
             'id': str(self.id),
             'bot_id': str(self.bot_id),
-            'category_type': self.category_type.value,
+            'category_type': self.category_type,
             'title': self.title,
             'content': self.content,
             'summary': self.summary,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+
+@dataclass
+class InitialQuestion:
+    """Data class representing an initial question record from the initial_questions table."""
+
+    id: UUID = field(default_factory=uuid.uuid4)
+    bot_id: UUID = field(default_factory=uuid.uuid4)
+    category_type: str = "stories"
+    question: str = ""
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'InitialQuestion':
+        """Create an InitialQuestion instance from a dictionary (e.g., from database)."""
+        # Handle UUID conversion
+        question_id = data.get('id')
+        if isinstance(question_id, str):
+            question_id = UUID(question_id)
+        elif question_id is None:
+            question_id = uuid.uuid4()
+
+        bot_id = data.get('bot_id')
+        if isinstance(bot_id, str):
+            bot_id = UUID(bot_id)
+        elif bot_id is None:
+            bot_id = uuid.uuid4()
+
+        category_type = data.get('category_type', 'stories')
+
+        # Handle datetime conversion
+        created_at = data.get('created_at')
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+
+        updated_at = data.get('updated_at')
+        if isinstance(updated_at, str):
+            updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+
+        return cls(
+            id=question_id,
+            bot_id=bot_id,
+            category_type=category_type,
+            question=data.get('question', ''),
+            created_at=created_at,
+            updated_at=updated_at
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert InitialQuestion instance to dictionary for database operations."""
+        return {
+            'id': str(self.id),
+            'bot_id': str(self.bot_id),
+            'category_type': self.category_type,
+            'question': self.question,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
 
 @dataclass
 class LLMMessage:
@@ -456,6 +513,11 @@ def story_analyses_from_dict_list(data_list: List[Dict[str, Any]]) -> List[Story
 def content_categories_from_dict_list(data_list: List[Dict[str, Any]]) -> List[ContentCategory]:
     """Convert a list of dictionaries to a list of ContentCategory instances."""
     return [ContentCategory.from_dict(data) for data in data_list]
+
+
+def initial_questions_from_dict_list(data_list: List[Dict[str, Any]]) -> List[InitialQuestion]:
+    """Convert a list of dictionaries to a list of InitialQuestion instances."""
+    return [InitialQuestion.from_dict(data) for data in data_list]
 
 
 def conversation_messages_from_dict_list(data_list: List[Dict[str, Any]]) -> List[ConversationMessage]:
@@ -830,24 +892,24 @@ class ConversationResponse:
 @dataclass
 class ContentItem:
     """Unified content item that can represent either a story or content category."""
-    
+
     id: str
-    category_type: ContentCategoryType
+    category_type: str
     title: Optional[str]
     content: str
     summary: str
-    
+
     @classmethod
     def from_story(cls, story: StoryWithAnalysis) -> 'ContentItem':
         """Create ContentItem from StoryWithAnalysis."""
         return cls(
             id=str(story.id),
-            category_type=ContentCategoryType.STORIES,
+            category_type="stories", 
             title=story.title,
             content=story.content,
             summary=story.summary
         )
-    
+
     @classmethod
     def from_content_category(cls, content_category: ContentCategory) -> 'ContentItem':
         """Create ContentItem from ContentCategory."""

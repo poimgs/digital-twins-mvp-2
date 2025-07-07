@@ -9,7 +9,7 @@ import random
 from dataclasses import dataclass
 from typing import List, Optional
 from core.llm_service import llm_service
-from core.models import ContentCategoryType, ContentItem
+from core.models import ContentItem
 from core.supabase_client import supabase_client
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class ContentRetrievalManager:
             content_categories = supabase_client.get_content_categories(bot_id=self.bot_id)
             for category in content_categories:
                 # Skip stories category as we already have them from stories table
-                if category.category_type != ContentCategoryType.STORIES:
+                if category.category_type != "stories":
                     content_items.append(ContentItem.from_content_category(category))
             
             logger.info(f"Retrieved {len(content_items)} total content items for bot {self.bot_id}")
@@ -91,7 +91,7 @@ Respond with just the content ID."""
             
             for item in content_items:
                 user_prompt += f"""\n\nContent ID: {item.id}
-Category: {item.category_type.value}
+Category: {item.category_type}
 Title: {item.title}
 Summary: {item.summary}
 """
@@ -135,44 +135,44 @@ Summary: {item.summary}
             logger.error(f"Error in content relevance assessment: {e}")
             return None
 
-    def get_content_items_by_category(self, category_type: ContentCategoryType) -> List[ContentItem]:
+    def get_content_items_by_category(self, category_type: str) -> List[ContentItem]:
         """
         Get content items filtered by category type.
-        
+
         Args:
             category_type: The category type to filter by
-            
+
         Returns:
             List of ContentItem instances for the specified category
         """
         all_content = self.get_all_content_items()
         return [item for item in all_content if item.category_type == category_type]
 
-    def get_random_categories_for_follow_up(self, current_category: ContentCategoryType, count: int = 2) -> List[ContentCategoryType]:
+    def get_random_categories_for_follow_up(self, current_category: str, count: int = 2) -> List[str]:
         """
         Get random categories different from the current one for follow-up questions.
-        
+
         Args:
             current_category: The current content category
             count: Number of random categories to return
-            
+
         Returns:
-            List of random ContentCategoryType instances
+            List of random category type strings
         """
         all_categories = [
-            ContentCategoryType.STORIES,
-            ContentCategoryType.DAILY_FOOD_MENU,
-            ContentCategoryType.PRODUCTS,
-            ContentCategoryType.CATERING
+            "stories",
+            "daily_food_menu",
+            "products",
+            "catering"
         ]
-        
+
         # Remove current category from options
         other_categories = [cat for cat in all_categories if cat != current_category]
-        
+
         # Return random selection, up to the requested count
         return random.sample(other_categories, min(count, len(other_categories)))
 
-    def get_content_summaries_by_category(self, category_type: ContentCategoryType) -> str:
+    def get_content_summaries_by_category(self, category_type: str) -> str:
         """
         Get summaries of content items for a specific category.
         
@@ -188,4 +188,4 @@ Summary: {item.summary}
         for item in content_items:
             summaries.append(f"- {item.summary}")
         
-        return "\n".join(summaries) if summaries else f"No {category_type.value} content available"
+        return "\n".join(summaries) if summaries else f"No {category_type} content available"
