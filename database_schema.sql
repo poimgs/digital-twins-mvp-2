@@ -70,7 +70,6 @@ CREATE TABLE IF NOT EXISTS conversation_state (
     bot_id UUID REFERENCES bots(id) ON DELETE CASCADE,
     conversation_number INTEGER NOT NULL DEFAULT 1,
     summary TEXT DEFAULT '',
-    call_to_action_shown BOOLEAN DEFAULT false,
     current_warmth_level INTEGER DEFAULT 1 CHECK (current_warmth_level >= 1 AND current_warmth_level <= 6),
     max_warmth_achieved INTEGER DEFAULT 1 CHECK (max_warmth_achieved >= 1 AND max_warmth_achieved <= 6),
     follow_up_questions TEXT[] DEFAULT '{}',

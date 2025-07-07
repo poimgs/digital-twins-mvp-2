@@ -240,11 +240,6 @@ Each question should be up to 7 words long and engaging.
             # Detect if this is an initial conversation (first few exchanges)
             is_initial_conversation = len(conversation_history) <= 2 or not conversation_summary.strip()
 
-            # TODO: Test if removing 
-            # # Use different prompts for initial vs ongoing conversations
-            # if is_initial_conversation:
-            #     system_prompt = self._get_initial_conversation_prompt()
-            # else:
             system_prompt = self._get_ongoing_conversation_prompt(
                 warmth_guidance, relevant_story, other_story_summaries, conversation_summary
             )
@@ -369,13 +364,6 @@ BOT RESPONSE: {bot_response}
                 final_chat_id = generate_terminal_chat_id(bot_id)
 
             conversation_manager = self.get_or_create_conversation_manager(final_chat_id, bot_id)
-
-            # Check if call to action has already been shown - if so, end conversation
-            if conversation_manager.call_to_action_shown:
-                reset_message = ("Thank you for our conversation! I've shared what I wanted to share with you. "
-                               "If you'd like to start a new conversation, please use the reset command (/reset)")
-                return ConversationResponse(reset_message, [])
-
             conversation_manager.add_user_message(user_message)
 
             # Get bot-specific stories
@@ -406,7 +394,7 @@ SUMMARY OF ALL STORIES:
 
             # Prepare call to action context based on warmth level
             cta_context = ""
-            if not conversation_manager.call_to_action_shown and conversation_manager.ready_for_call_to_action():
+            if conversation_manager.ready_for_call_to_action():
                 cta_context = f"""
 CALL TO ACTION GUIDANCE - MANDATORY:
 
@@ -475,34 +463,7 @@ PERSONALITY PROFILE:
                 conversation_manager=conversation_manager
             )
 
-            # Check if the LLM naturally included the call to action in the response
-            # If so, mark it as shown to prevent future prompting
-            cta_detected = False
-            if not conversation_manager.call_to_action_shown:
-                response_lower = response.lower()
-                cta_mentioned = False
-
-                # Check if the specific keyword is mentioned in the response
-                cta_mentioned = self.call_to_action_keyword.lower() in response_lower
-                logger.info(f"Checking for CTA keyword '{self.call_to_action_keyword}' in response: {cta_mentioned}")
-
-                if cta_mentioned:
-                    try:
-                        supabase_client.update_conversation_state(
-                            chat_id=final_chat_id,
-                            call_to_action_shown=True,
-                            conversation_number=conversation_manager.conversation_number
-                        )
-                        conversation_manager.call_to_action_shown = True
-                        cta_detected = True
-                        logger.info(f"CTA detected in response and marked as shown")
-                    except Exception as e:
-                        logger.error(f"Error updating call_to_action_shown state: {e}")
-
-            # If call to action was just detected, don't provide follow-up questions
-            # as this marks the end of the conversation
-            final_follow_up_questions = [] if cta_detected else follow_up_questions
-            conversation_response = ConversationResponse(response, final_follow_up_questions)
+            conversation_response = ConversationResponse(response, follow_up_questions)
 
             conversation_manager.add_assistant_message(conversation_response.response)
             conversation_manager.summarize_conversation(user_message, conversation_response.response)

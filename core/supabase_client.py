@@ -516,7 +516,6 @@ class SupabaseClient:
         self,
         chat_id: str,
         summary: Optional[str] = None,
-        call_to_action_shown: Optional[bool] = None,
         current_warmth_level: Optional[int] = None,
         max_warmth_achieved: Optional[int] = None,
         follow_up_questions: Optional[List[str]] = None,
@@ -528,7 +527,6 @@ class SupabaseClient:
         Args:
             chat_id: The chat ID (format: bot_id_user_id)
             summary: Updated summary text
-            call_to_action_shown: Whether call to action has been shown
             current_warmth_level: Current warmth level (1-6)
             max_warmth_achieved: Maximum warmth level achieved (1-6)
             follow_up_questions: List of follow-up questions
@@ -546,8 +544,6 @@ class SupabaseClient:
 
             if summary is not None:
                 update_data["summary"] = summary
-            if call_to_action_shown is not None:
-                update_data["call_to_action_shown"] = str(call_to_action_shown).lower()
             if current_warmth_level is not None:
                 update_data["current_warmth_level"] = str(current_warmth_level)
             if max_warmth_achieved is not None:

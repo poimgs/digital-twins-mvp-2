@@ -442,7 +442,6 @@ class ConversationState:
     bot_id: UUID = field(default_factory=uuid.uuid4)
     conversation_number: int = 1
     summary: str = ""
-    call_to_action_shown: bool = False
     current_warmth_level: int = WarmthLevel.IS.value
     max_warmth_achieved: int = WarmthLevel.IS.value
     follow_up_questions: List[str] = field(default_factory=list)
@@ -480,7 +479,6 @@ class ConversationState:
             bot_id=bot_id,
             conversation_number=data.get('conversation_number', 1),
             summary=data.get('summary', ''),
-            call_to_action_shown=data.get('call_to_action_shown', False),
             current_warmth_level=data.get('current_warmth_level', WarmthLevel.IS.value),
             max_warmth_achieved=data.get('max_warmth_achieved', WarmthLevel.IS.value),
             follow_up_questions=data.get('follow_up_questions', []),
@@ -496,7 +494,6 @@ class ConversationState:
             'bot_id': str(self.bot_id),
             'conversation_number': self.conversation_number,
             'summary': self.summary,
-            'call_to_action_shown': self.call_to_action_shown,
             'current_warmth_level': self.current_warmth_level,
             'max_warmth_achieved': self.max_warmth_achieved,
             'follow_up_questions': self.follow_up_questions,

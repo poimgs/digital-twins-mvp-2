@@ -32,13 +32,11 @@ class ConversationManager:
             state = supabase_client.get_conversation_state(chat_id, self.conversation_number)
             if state:
                 self.summary = state.summary
-                self.call_to_action_shown = state.call_to_action_shown
                 self.current_warmth_level = WarmthLevel(state.current_warmth_level)
                 self.max_warmth_achieved = WarmthLevel(state.max_warmth_achieved)
             else:
                 # Initialize with defaults - state will be created when first message is sent
                 self.summary = ""
-                self.call_to_action_shown = False
                 self.current_warmth_level = WarmthLevel.IS
                 self.max_warmth_achieved = WarmthLevel.IS
                 self._state_needs_creation = True  # Flag to create state on first message
@@ -46,7 +44,6 @@ class ConversationManager:
             logger.error(f"Error loading conversation state from database: {e}")
             # Fall back to defaults
             self.summary = ""
-            self.call_to_action_shown = False
             self.current_warmth_level = WarmthLevel.IS
             self.max_warmth_achieved = WarmthLevel.IS
             self._state_needs_creation = True
@@ -120,7 +117,6 @@ LLM response: {llm_response}"""
                     bot_id=self.bot_id,
                     conversation_number=self.conversation_number,
                     summary=self.summary,
-                    call_to_action_shown=self.call_to_action_shown,
                     current_warmth_level=self.current_warmth_level.value,
                     max_warmth_achieved=self.max_warmth_achieved.value,
                     created_at=datetime.now(timezone.utc),
@@ -433,7 +429,6 @@ PURPOSE: Encourage reflection on possibilities and deeper meaning"""
 
             # Reset local state
             self.summary = ""
-            self.call_to_action_shown = False
             self.current_warmth_level = WarmthLevel.IS
             self.max_warmth_achieved = WarmthLevel.IS
 
@@ -446,7 +441,6 @@ PURPOSE: Encourage reflection on possibilities and deeper meaning"""
                     bot_id=self.bot_id,
                     conversation_number=self.conversation_number,
                     summary=self.summary,
-                    call_to_action_shown=self.call_to_action_shown,
                     current_warmth_level=self.current_warmth_level.value,
                     max_warmth_achieved=self.max_warmth_achieved.value,
                     created_at=datetime.now(timezone.utc),
