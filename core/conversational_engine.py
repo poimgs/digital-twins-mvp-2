@@ -143,6 +143,9 @@ CONVERSATION CONTEXT:
 
 Your task is to generate exactly 1 follow-up question that builds naturally on the current dialogue exchange.
 
+The follow-up question will be provided to the user to ask the digital twin.
+Ensure that the question is framed as if the user is asking the digital twin.
+
 DIGITAL TWIN PERSONALITY PROFILE:
 {self.bot_personality}
 
@@ -176,6 +179,9 @@ Generate 1 engaging question (up to 7 words) that naturally continues the curren
             return f"""You are an expert at generating conversation-focused follow-up questions for business/service content.
 
 Your task is to generate exactly 1 follow-up question that builds naturally on the current dialogue exchange.
+
+The follow-up question will be provided to the user to ask the digital twin.
+Ensure that the question is framed as if the user is asking the digital twin.
 
 CONVERSATION SUMMARY:
 {conversation_summary}
@@ -219,6 +225,9 @@ Generate 1 engaging question (up to 7 words) that naturally continues the curren
 
 Your task is to generate exactly 2 follow-up questions that explore different content categories.
 
+The follow-up question will be provided to the user to ask the digital twin.
+Ensure that the question is framed as if the user is asking the digital twin.
+
 DIGITAL TWIN PERSONALITY PROFILE:
 {self.bot_personality}
 
@@ -245,6 +254,9 @@ Generate 2 engaging questions (up to 7 words each) that explore different catego
             return f"""You are an expert at generating category-exploration follow-up questions for business/service content.
 
 Your task is to generate exactly 2 follow-up questions that explore different content categories.
+
+The follow-up question will be provided to the user to ask the digital twin.
+Ensure that the question is framed as if the user is asking the digital twin.
 
 {content_context}
 
@@ -295,193 +307,6 @@ Generate 2 engaging questions (up to 7 words each) that explore different catego
         messages.append(LLMMessage("user", user_message))
 
         return messages
-
-    def _get_initial_conversation_prompt(self) -> str:
-        """
-        Generate system prompt for initial conversations with broad, exploratory questions.
-        """
-        return f"""You are an expert at generating follow-up questions for the user to ask the digital twin.
-
-Your task is to generate exactly 3 BROAD and EXPLORATORY follow-up questions for an initial conversation.
-
-DIGITAL TWIN PERSONALITY PROFILE:
-{self.bot_personality}
-
-🚨 CRITICAL REQUIREMENTS FOR INITIAL CONVERSATIONS:
-
-1. ALL QUESTIONS MUST BE ABOUT THE DIGITAL TWIN:
-   - Never ask about other people mentioned in stories
-   - Always focus on the digital twin's experiences, feelings, and perspectives
-
-2. QUESTIONS MUST BE BROAD AND WELCOMING:
-   - Use general, open-ended questions
-   - Help the user discover what they want to explore
-   - Avoid overly specific details
-   - Focus on general topics and experiences
-   - Keep questions welcoming and exploratory
-
-Generate 3 broad questions following this strategy:
-
-1. GENERAL EXPERIENCE QUESTION: Ask about a broad area of the digital twin's life or experiences
-   - Should be open-ended and exploratory
-   - Help the user discover interesting topics
-   - Example: "What experiences shaped you most?"
-
-2. PERSONALITY/VALUES QUESTION: Ask about the digital twin's personality, values, or perspectives
-   - Should be broad and inviting
-   - Help understand the digital twin as a person
-   - Example: "What matters most to you?"
-
-3. OPEN EXPLORATION QUESTION: Your choice that invites broad exploration
-   - Should be engaging and open-ended
-   - Help the user feel comfortable exploring
-   - Example: "What would you like to share?"
-
-Each question should be up to 7 words long and welcoming."""
-
-    def _get_ongoing_conversation_prompt(
-        self,
-        warmth_guidance: str,
-        relevant_story: Optional[StoryWithAnalysis],
-        other_story_summaries: str,
-        conversation_summary: str
-    ) -> str:
-        """
-        Generate system prompt for ongoing conversations with specific, contextual questions.
-        """
-        
-        # Create story context
-        if relevant_story:
-            story_context = f"""
-CURRENT RELEVANT STORY:
-{relevant_story.content}
-
-OTHER AVAILABLE STORIES:
-{other_story_summaries if other_story_summaries else "No other stories available"}
-"""
-        else:
-            story_context = f"""
-OTHER AVAILABLE STORIES:
-{other_story_summaries if other_story_summaries else "No other stories available"}             
-"""
-        
-
-        return f"""You are an expert at generating follow-up questions for the user to ask the digital twin.
-
-Your task is to generate exactly 3 follow-up questions based on the established conversation context.
-
-DIGITAL TWIN PERSONALITY PROFILE:
-{self.bot_personality}
-
-WARMTH GUIDANCE FOR CURRENT STORY QUESTIONS:
-{warmth_guidance}
-
-{story_context}
-
-CONVERSATION SUMMARY:
-{conversation_summary}
-
-🚨 CRITICAL REQUIREMENTS FOR ONGOING CONVERSATIONS:
-
-1. ALL QUESTIONS MUST BE ABOUT THE DIGITAL TWIN:
-   - Never ask about other people mentioned in stories
-   - Always focus on the digital twin's experiences, feelings, and perspectives
-   - If a story mentions other people, ask about how the digital twin felt or what they learned
-   - Example: Instead of "What did your friend think?" ask "How did that experience affect you?"
-
-2. QUESTIONS CAN BE SPECIFIC AND DETAILED:
-   - Build on established conversation context
-   - Dive deeper into topics already discussed
-   - Use specific details from the conversation
-
-Generate 3 questions following this strategy:
-
-1. CURRENT STORY QUESTION: 🚨 MANDATORY PROGRESSION - You MUST move UP the question ladder!
-   - REQUIRED: Follow the EXACT structure specified in the warmth guidance above
-   - The warmth guidance tells you the REQUIRED next level - you MUST use that structure
-   - Focus on the current relevant story about the DIGITAL TWIN
-   - This question MUST progress to the next warmth level - NO EXCEPTIONS
-   - MUST be about the digital twin, not other people in the story
-
-2. OTHER STORY QUESTION: Ask about exploring a different story from the available stories
-   - Can use any appropriate question structure
-   - Should nudge toward exploring different experiences of the DIGITAL TWIN
-   - MUST be about the digital twin's experiences
-
-3. LLM CHOICE QUESTION: Your choice that fits conversation flow and personality
-   - Can use any appropriate question structure
-   - Should be engaging and relevant to the DIGITAL TWIN
-   - MUST be about the digital twin
-
-Each question should be up to 7 words long and engaging.
-
-🚨 CRITICAL REQUIREMENT FOR QUESTION #1:
-- The warmth guidance above specifies the EXACT question structure you MUST use
-- You MUST progress up the ladder - if current level is "can", you MUST ask "will" questions
-- If current level is "will", you MUST ask "would" questions, etc.
-- NO EXCEPTIONS - the first question MUST move to the next warmth level
-- Failure to follow this progression breaks the conversation flow"""
-
-    def _get_content_category_conversation_prompt(
-        self,
-        warmth_guidance: str,
-        relevant_content: Optional[ContentItem],
-        other_category_summaries: Dict[str, str],
-        conversation_summary: str
-    ) -> str:
-        """
-        Generate system prompt for conversations with content categories.
-        """
-
-        # Create content context
-        if relevant_content:
-            content_context = f"""
-CURRENT RELEVANT CONTENT ({relevant_content.category_type.upper()}):
-{relevant_content.content}
-
-OTHER AVAILABLE CATEGORIES:
-"""
-            for category_type, summaries in other_category_summaries.items():
-                if category_type != relevant_content.category_type:
-                    content_context += f"\n{category_type.upper()}:\n{summaries}\n"
-        else:
-            content_context = """
-OTHER AVAILABLE CATEGORIES:
-"""
-            for category_type, summaries in other_category_summaries.items():
-                content_context += f"\n{category_type.upper()}:\n{summaries}\n"
-
-        return f"""You are an expert at generating follow-up questions for the user to ask the digital twin.
-
-Your task is to generate exactly 3 follow-up questions based on content categories.
-
-DIGITAL TWIN PERSONALITY PROFILE:
-{self.bot_personality}
-
-WARMTH GUIDANCE FOR CURRENT CATEGORY QUESTIONS:
-{warmth_guidance}
-
-{content_context}
-
-CONVERSATION SUMMARY:
-{conversation_summary}
-
-🚨 CRITICAL REQUIREMENTS FOR CONTENT CATEGORY CONVERSATIONS:
-
-1. ALL QUESTIONS MUST BE ABOUT THE DIGITAL TWIN:
-   - Never ask about other people mentioned in content
-   - Always focus on the digital twin's experiences, knowledge, and perspectives
-   - If content mentions other people, ask about how the digital twin relates to it
-
-2. QUESTION STRUCTURE:
-   - 1st question: Focus on the CURRENT CATEGORY using warmth guidance
-   - 2nd question: Focus on a DIFFERENT CATEGORY from available categories
-   - 3rd question: Focus on another DIFFERENT CATEGORY from available categories
-
-Each question should be up to 7 words long and engaging.
-
-- For the 1st question: {warmth_guidance}
-- For 2nd and 3rd questions: Use any appropriate question structure that fits the category"""
 
     # Get initial category questions and save into database
     # This is so that the telegram bot can use this function to get initial category questions, and ensure that when user clicks on one, the correct question is picked up
@@ -709,6 +534,9 @@ BOT RESPONSE: {bot_response}
             system_prompt = f"""You are an expert at generating story-focused follow-up questions.
 
 Your task is to generate exactly 2 follow-up questions that explore different aspects of the digital twin's stories and experiences.
+
+The follow-up question will be provided to the user to ask the digital twin.
+Ensure that the question is framed as if the user is asking the digital twin.
 
 DIGITAL TWIN PERSONALITY PROFILE:
 {self.bot_personality}
