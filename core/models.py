@@ -39,8 +39,6 @@ def normalize_timestamp(timestamp_str: str) -> str:
     if microseconds:
         # Pad microseconds to 6 digits or truncate if longer
         microseconds = microseconds.ljust(6, '0')[:6]
-        # Remove trailing zeros for cleaner format
-        microseconds = microseconds.rstrip('0')
         if microseconds:
             return f"{base_time}.{microseconds}{timezone}"
     
