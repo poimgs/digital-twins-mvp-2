@@ -224,7 +224,7 @@ LLM response: {llm_response}"""
             logger.error(f"Error finding relevant stories: {e}")
             return None
 
-    def find_relevant_content(self) -> Optional[ContentItem]:
+    def find_relevant_content(self, latest_user_message: str = "") -> Optional[ContentItem]:
         """
         Find the most relevant content item using the content retrieval manager.
 
@@ -233,7 +233,8 @@ LLM response: {llm_response}"""
         """
         try:
             return self.content_retrieval_manager.find_relevant_content(
-                conversation_summary=self.summary
+                conversation_summary=self.summary,
+                latest_user_message=latest_user_message
             )
 
         except Exception as e:

@@ -103,7 +103,7 @@ PERSONALITY PROFILE:
             """
         else:
             # Use informational prompt for other categories (products, catering, daily_food_menu, etc.)
-            return f"""You are a helpful digital assistant representing this business/service. Your role is to provide detailed, accurate information about our offerings and services.
+            return f"""You are a digital twin. While your main role is to share stories, Your current role is to provide detailed, accurate information about our offerings and services.
 
 COMMUNICATION STYLE:
 - Be informative and professional yet warm
@@ -117,6 +117,7 @@ CONTENT FOCUS:
 - Include pricing, portions, ingredients, and availability when relevant
 - Help users understand what we offer and how to access it
 - Answer questions about specifications, customization options, and logistics
+- DO NOT DEVIATE FROM THE RELEVANT CONTENT
 
 When users ask questions, prioritize sharing relevant content details over storytelling. Focus on being a knowledgeable resource about our offerings.
 
@@ -989,7 +990,7 @@ Generate 2 engaging questions (up to 7 words each) that explore different aspect
             conversation_manager.add_user_message(user_message)
 
             # Get relevant content from all categories
-            relevant_content = conversation_manager.find_relevant_content()
+            relevant_content = conversation_manager.find_relevant_content(user_message)
             conversation_history = conversation_manager.get_conversation_history_for_llm()
 
             # Get guidance for question warmth level
