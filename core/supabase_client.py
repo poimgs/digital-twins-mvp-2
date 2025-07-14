@@ -10,8 +10,8 @@ from supabase import create_client, Client
 from config.settings import settings
 from core.models import (
     Bot, Story, StoryAnalysis, PersonalityProfile, ConversationMessage, LLMMessage, ConversationState,
-    StoryWithAnalysis, TokenUsage, ContentCategory, InitialQuestion,
-    stories_from_dict_list, story_analyses_from_dict_list, content_categories_from_dict_list,
+    StoryWithAnalysis, TokenUsage, InitialQuestion,
+    stories_from_dict_list, story_analyses_from_dict_list,
     initial_questions_from_dict_list, conversation_messages_from_dict_list, conversation_messages_to_llm_format,
     bots_from_dict_list, token_usage_from_dict_list
 )
@@ -131,12 +131,13 @@ class SupabaseClient:
             raise
 
     # Stories table operations
-    def get_stories(self, bot_id: Optional[str] = None, limit: Optional[int] = None) -> List[Story]:
+    def get_stories(self, bot_id: Optional[str] = None, category_type: Optional[str] = None, limit: Optional[int] = None) -> List[Story]:
         """
         Retrieve stories from the database.
 
         Args:
             bot_id: Optional bot ID to filter stories
+            category_type: Optional category type to filter stories
             limit: Optional limit on number of stories to retrieve
 
         Returns:
@@ -146,6 +147,8 @@ class SupabaseClient:
             query = self.client.table("stories").select("*")
             if bot_id:
                 query = query.eq("bot_id", bot_id)
+            if category_type:
+                query = query.eq("category_type", category_type)
             if limit:
                 query = query.limit(limit)
 
@@ -218,26 +221,28 @@ class SupabaseClient:
             logger.error(f"Error retrieving story analyses: {e}")
             raise
 
-    def get_stories_with_analysis(self, bot_id: Optional[str] = None) -> List[StoryWithAnalysis]:
+    def get_stories_with_analysis(self, bot_id: Optional[str] = None, category_type: Optional[str] = None) -> List[StoryWithAnalysis]:
         """
-        Retrieve stories with their analysis data.
+        Retrieve stories with their analysis data (analysis is optional).
 
         Args:
             bot_id: Optional bot ID to filter stories
+            category_type: Optional category type to filter stories
 
         Returns:
             List of StoryWithAnalysis instances
         """
         try:
-            # Build the JOIN query to get stories with their analysis
+            # Build the LEFT JOIN query to get stories with optional analysis
             query = self.client.table("stories").select("""
                 id,
                 bot_id,
+                category_type,
                 title,
                 content,
                 created_at,
                 updated_at,
-                story_analysis!inner(
+                story_analysis(
                     id,
                     summary,
                     triggers,
@@ -250,6 +255,8 @@ class SupabaseClient:
 
             if bot_id:
                 query = query.eq("bot_id", bot_id)
+            if category_type:
+                query = query.eq("category_type", category_type)
 
             result = query.execute()
 
@@ -260,15 +267,17 @@ class SupabaseClient:
                 story_data = {
                     'id': row['id'],
                     'bot_id': row['bot_id'],
+                    'category_type': row.get('category_type', 'stories'),
                     'title': row['title'],
                     'content': row['content'],
                     'story_created_at': row['created_at'],
                     'story_updated_at': row['updated_at']
                 }
 
-                # Extract analysis data (should be a single item due to inner join)
-                if row['story_analysis'] and len(row['story_analysis']) > 0:
-                    analysis = row['story_analysis'][0]  # Take first analysis
+                # Extract analysis data (optional - may be None or empty)
+                analysis_data = row.get('story_analysis')
+                if analysis_data and len(analysis_data) > 0:
+                    analysis = analysis_data[0]  # Take first analysis
                     story_data.update({
                         'analysis_id': analysis['id'],
                         'summary': analysis['summary'],
@@ -278,96 +287,40 @@ class SupabaseClient:
                         'values': analysis['values'],
                         'analysis_created_at': analysis['created_at']
                     })
+                else:
+                    # No analysis data - use defaults
+                    story_data.update({
+                        'analysis_id': None,
+                        'summary': '',
+                        'triggers': [],
+                        'emotions': [],
+                        'thoughts': [],
+                        'values': [],
+                        'analysis_created_at': None
+                    })
 
                 stories_with_analysis.append(StoryWithAnalysis.from_dict(story_data))
 
-            logger.info(f"Retrieved {len(stories_with_analysis)} stories with analysis")
+            logger.info(f"Retrieved {len(stories_with_analysis)} stories with optional analysis")
             return stories_with_analysis
 
         except Exception as e:
             logger.error(f"Error retrieving stories with analysis: {e}")
             raise
 
-    # Content categories table operations
-    def insert_content_category(self, content_category: ContentCategory) -> ContentCategory:
-        """
-        Insert a content category into the database.
-
-        Args:
-            content_category: ContentCategory instance to insert
-
-        Returns:
-            The inserted ContentCategory instance
-        """
-        try:
-            content_dict = content_category.to_dict()
-            # Remove None values for insert
-            content_dict = {k: v for k, v in content_dict.items() if v is not None}
-
-            result = self.client.table("content_categories").insert(content_dict).execute()
-            if result.data:
-                return ContentCategory.from_dict(result.data[0])
-            else:
-                return content_category
-        except Exception as e:
-            logger.error(f"Error inserting content category: {e}")
-            raise
-
-    def get_content_categories(self, bot_id: Optional[str] = None, category_type: Optional[str] = None) -> List[ContentCategory]:
-        """
-        Retrieve content categories from the database.
-
-        Args:
-            bot_id: Optional bot ID to filter content categories
-            category_type: Optional category type to filter content categories
-
-        Returns:
-            List of ContentCategory instances
-        """
-        try:
-            query = self.client.table("content_categories").select("*")
-            if bot_id:
-                query = query.eq("bot_id", bot_id)
-            if category_type:
-                query = query.eq("category_type", category_type)
-
-            result = query.execute()
-            return content_categories_from_dict_list(result.data)
-        except Exception as e:
-            logger.error(f"Error retrieving content categories: {e}")
-            raise
-
-    def get_content_category_by_id(self, content_id: str) -> Optional[ContentCategory]:
-        """
-        Retrieve a specific content category by ID.
-
-        Args:
-            content_id: The content category ID
-
-        Returns:
-            ContentCategory instance or None if not found
-        """
-        try:
-            result = self.client.table("content_categories").select("*").eq("id", content_id).execute()
-            if result.data:
-                return ContentCategory.from_dict(result.data[0])
-            return None
-        except Exception as e:
-            logger.error(f"Error retrieving content category: {e}")
-            raise
-
     def get_distinct_category_types(self, bot_id: Optional[str] = None) -> List[str]:
         """
-        Retrieve distinct category types from content categories and add 'stories'.
+        Retrieve distinct category types from stories table.
+        Shows all categories that have actual content.
 
         Args:
-            bot_id: Optional bot ID to filter content categories
+            bot_id: Optional bot ID to filter stories
 
         Returns:
-            List of distinct category type strings, always including 'stories'
+            List of distinct category type strings
         """
         try:
-            query = self.client.table("content_categories").select("category_type")
+            query = self.client.table("stories").select("category_type")
             if bot_id:
                 query = query.eq("bot_id", bot_id)
 
@@ -379,10 +332,7 @@ class SupabaseClient:
                 if row.get("category_type"):
                     category_types.add(row["category_type"])
             
-            # Always include 'stories' as it comes from a different table
-            category_types.add("stories")
-            
-            return sorted(list(category_types))
+            return sorted(list(category_types)) if category_types else ["stories"]
         except Exception as e:
             logger.error(f"Error retrieving distinct category types: {e}")
             # Return fallback categories if database query fails

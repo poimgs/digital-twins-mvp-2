@@ -81,6 +81,7 @@ class Story:
 
     id: UUID = field(default_factory=uuid.uuid4)
     bot_id: UUID = field(default_factory=uuid.uuid4)
+    category_type: str = "stories"
     title: Optional[str] = None
     content: str = ""
     created_at: Optional[datetime] = None
@@ -114,6 +115,7 @@ class Story:
         return cls(
             id=story_id,
             bot_id=bot_id,
+            category_type=data.get('category_type', 'stories'),
             title=data.get('title'),
             content=data.get('content', ''),
             created_at=created_at,
@@ -125,6 +127,7 @@ class Story:
         return {
             'id': str(self.id),
             'bot_id': str(self.bot_id),
+            'category_type': self.category_type,
             'title': self.title,
             'content': self.content,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -272,69 +275,6 @@ class PersonalityProfile:
         }
 
 
-@dataclass
-class ContentCategory:
-    """Data class representing a content category record from the content_categories table."""
-
-    id: UUID = field(default_factory=uuid.uuid4)
-    bot_id: UUID = field(default_factory=uuid.uuid4)
-    category_type: str = "stories"
-    title: Optional[str] = None
-    content: str = ""
-    summary: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ContentCategory':
-        """Create a ContentCategory instance from a dictionary (e.g., from database)."""
-        # Handle UUID conversion
-        content_id = data.get('id')
-        if isinstance(content_id, str):
-            content_id = UUID(content_id)
-        elif content_id is None:
-            content_id = uuid.uuid4()
-
-        bot_id = data.get('bot_id')
-        if isinstance(bot_id, str):
-            bot_id = UUID(bot_id)
-        elif bot_id is None:
-            bot_id = uuid.uuid4()
-
-        category_type = data.get('category_type', 'stories')
-
-        # Handle datetime conversion
-        created_at = data.get('created_at')
-        if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-
-        updated_at = data.get('updated_at')
-        if isinstance(updated_at, str):
-            updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
-
-        return cls(
-            id=content_id,
-            bot_id=bot_id,
-            category_type=category_type,
-            title=data.get('title'),
-            content=data.get('content', ''),
-            summary=data.get('summary'),
-            created_at=created_at,
-            updated_at=updated_at
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert ContentCategory instance to dictionary for database operations."""
-        return {
-            'id': str(self.id),
-            'bot_id': str(self.bot_id),
-            'category_type': self.category_type,
-            'title': self.title,
-            'content': self.content,
-            'summary': self.summary,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
-        }
 
 
 @dataclass
@@ -510,9 +450,6 @@ def story_analyses_from_dict_list(data_list: List[Dict[str, Any]]) -> List[Story
     return [StoryAnalysis.from_dict(data) for data in data_list]
 
 
-def content_categories_from_dict_list(data_list: List[Dict[str, Any]]) -> List[ContentCategory]:
-    """Convert a list of dictionaries to a list of ContentCategory instances."""
-    return [ContentCategory.from_dict(data) for data in data_list]
 
 
 def initial_questions_from_dict_list(data_list: List[Dict[str, Any]]) -> List[InitialQuestion]:
@@ -650,14 +587,15 @@ class StoryWithAnalysis:
     # Story fields
     id: UUID = field(default_factory=uuid.uuid4)
     bot_id: UUID = field(default_factory=uuid.uuid4)
+    category_type: str = "stories"
     title: Optional[str] = None
     content: str = ""
     story_created_at: Optional[datetime] = None
     story_updated_at: Optional[datetime] = None
 
-    # Analysis fields
+    # Analysis fields (optional)
     analysis_id: Optional[UUID] = None
-    summary: str = ""
+    summary: Optional[str] = None
     triggers: List[str] = field(default_factory=list)
     emotions: List[str] = field(default_factory=list)
     thoughts: List[str] = field(default_factory=list)
@@ -705,12 +643,13 @@ class StoryWithAnalysis:
         return cls(
             id=story_id,
             bot_id=bot_id,
+            category_type=data.get('category_type', 'stories'),
             title=data.get('title'),
             content=data.get('content', ''),
             story_created_at=story_created_at,
             story_updated_at=story_updated_at,
             analysis_id=analysis_id,
-            summary=data.get('summary', ''),
+            summary=data.get('summary'),
             triggers=data.get('triggers', []),
             emotions=data.get('emotions', []),
             thoughts=data.get('thoughts', []),
@@ -723,6 +662,7 @@ class StoryWithAnalysis:
         return {
             'id': str(self.id),
             'bot_id': str(self.bot_id),
+            'category_type': self.category_type,
             'title': self.title,
             'content': self.content,
             'story_created_at': self.story_created_at.isoformat() if self.story_created_at else None,
@@ -897,26 +837,15 @@ class ContentItem:
     category_type: str
     title: Optional[str]
     content: str
-    summary: str
+    summary: Optional[str]
 
     @classmethod
     def from_story(cls, story: StoryWithAnalysis) -> 'ContentItem':
-        """Create ContentItem from StoryWithAnalysis."""
+        """Create ContentItem from StoryWithAnalysis (unified content structure)."""
         return cls(
             id=str(story.id),
-            category_type="stories", 
+            category_type=story.category_type,
             title=story.title,
             content=story.content,
             summary=story.summary
-        )
-
-    @classmethod
-    def from_content_category(cls, content_category: ContentCategory) -> 'ContentItem':
-        """Create ContentItem from ContentCategory."""
-        return cls(
-            id=str(content_category.id),
-            category_type=content_category.category_type,
-            title=content_category.title,
-            content=content_category.content,
-            summary=content_category.summary or content_category.content[:200] + "..."
         )

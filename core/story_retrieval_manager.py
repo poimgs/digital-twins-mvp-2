@@ -52,13 +52,21 @@ Respond with just the story ID.
             user_prompt = f"Conversation summary: {conversation_summary}"
             
             for story in stories:
+                # Handle optional analysis data
+                summary = story.summary if story.has_analysis() else story.content
+                triggers = story.triggers if story.has_analysis() else []
+                emotions = story.emotions if story.has_analysis() else []
+                thoughts = story.thoughts if story.has_analysis() else []
+                values = story.values if story.has_analysis() else []
+                
                 user_prompt += f"""\n\nStory ID: {story.id}
 Title: {story.title}
-Summary: {story.summary}
-Triggers: {story.triggers}
-Emotions: {story.emotions}
-Thoughts: {story.thoughts}
-Values: {story.values}
+Category: {story.category_type}
+Summary: {summary}
+Triggers: {triggers}
+Emotions: {emotions}
+Thoughts: {thoughts}
+Values: {values}
 """
 
             # Define schema for structured response

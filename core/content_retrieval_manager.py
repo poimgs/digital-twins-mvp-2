@@ -33,7 +33,7 @@ class ContentRetrievalManager:
 
     def get_all_content_items(self) -> List[ContentItem]:
         """
-        Get all content items (stories and content categories) for the bot.
+        Get all content items from the unified stories table for the bot.
         
         Returns:
             List of ContentItem instances
@@ -41,17 +41,10 @@ class ContentRetrievalManager:
         content_items = []
         
         try:
-            # Get stories with analysis
+            # Get all stories (all content types) with optional analysis
             stories = supabase_client.get_stories_with_analysis(self.bot_id)
             for story in stories:
                 content_items.append(ContentItem.from_story(story))
-            
-            # Get content categories
-            content_categories = supabase_client.get_content_categories(bot_id=self.bot_id)
-            for category in content_categories:
-                # Skip stories category as we already have them from stories table
-                if category.category_type != "stories":
-                    content_items.append(ContentItem.from_content_category(category))
             
             logger.info(f"Retrieved {len(content_items)} total content items for bot {self.bot_id}")
             return content_items
@@ -75,25 +68,29 @@ class ContentRetrievalManager:
             return None
             
         try:
-            system_prompt = """You are an expert judge for determining content relevance in digital twin conversations.
+            # Get available categories for dynamic system prompt
+            active_categories = supabase_client.get_distinct_category_types(bot_id=self.bot_id)
+            
+            system_prompt = f"""You are an expert judge for determining content relevance in digital twin conversations.
 
-Your task is to evaluate which content should be shared in the current conversation context. You will be given a summary of the conversation and a list of content items from different categories (stories, daily food menu, products, catering).
+Your task is to evaluate which content should be shared in the current conversation context. You will be given a summary of the conversation and a list of content items from different categories.
 
-Choose the most relevant content item based on the conversation context. Consider:
-- Stories: Personal experiences and narratives
-- Daily Food Menu: Food offerings and culinary heritage
-- Products: Coffee products and brand information
-- Catering: Event catering services and packages
+Available categories: {', '.join(active_categories)}
+
+Choose the most relevant content item based on the conversation context.
 
 Respond with just the content ID."""
 
             user_prompt = f"Conversation summary: {conversation_summary}"
             
             for item in content_items:
+                # Use summary if available and non-empty, otherwise use truncated content
+                content_description = item.summary if (item.summary and item.summary.strip()) else item.content
+                
                 user_prompt += f"""\n\nContent ID: {item.id}
 Category: {item.category_type}
 Title: {item.title}
-Summary: {item.summary}
+Content: {content_description}
 """
 
             # Define schema for structured response
@@ -145,12 +142,24 @@ Summary: {item.summary}
         Returns:
             List of ContentItem instances for the specified category
         """
-        all_content = self.get_all_content_items()
-        return [item for item in all_content if item.category_type == category_type]
+        try:
+            # Get stories filtered by category type with optional analysis
+            stories = supabase_client.get_stories_with_analysis(self.bot_id, category_type=category_type)
+            content_items = []
+            for story in stories:
+                content_items.append(ContentItem.from_story(story))
+            
+            logger.info(f"Retrieved {len(content_items)} content items for category {category_type} for bot {self.bot_id}")
+            return content_items
+            
+        except Exception as e:
+            logger.error(f"Error retrieving content items by category {category_type}: {e}")
+            return []
 
     def get_random_categories_for_follow_up(self, current_category: str, count: int = 2) -> List[str]:
         """
         Get random categories different from the current one for follow-up questions.
+        Only returns categories that have actual content.
 
         Args:
             current_category: The current content category
@@ -159,7 +168,7 @@ Summary: {item.summary}
         Returns:
             List of random category type strings
         """
-        # Get all available categories dynamically from the database
+        # Get categories that have actual content for user-facing follow-up questions
         all_categories = supabase_client.get_distinct_category_types(bot_id=self.bot_id)
 
         # Remove current category from options
@@ -182,6 +191,8 @@ Summary: {item.summary}
         summaries = []
         
         for item in content_items:
-            summaries.append(f"- {item.summary}")
+            # Use summary if available and non-empty, otherwise use content
+            description = item.summary if (item.summary and item.summary.strip()) else item.content
+            summaries.append(f"- {description}")
         
         return "\n".join(summaries) if summaries else f"No {category_type} content available"

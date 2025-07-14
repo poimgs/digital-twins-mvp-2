@@ -322,14 +322,14 @@ Each question should be up to 7 words long and engaging.
 
             # Select one question from each available category randomly
             questions = []
-            for category_type, question_list in grouped_questions.items():
+            for _, question_list in grouped_questions.items():
                 if question_list:  # Make sure the category has questions
                     selected_question = random.choice(question_list)
                     questions.append(selected_question.question)
 
             # If we have fewer than 3 questions, pad with available questions
             while len(questions) < 3 and any(grouped_questions.values()):
-                for category_type, question_list in grouped_questions.items():
+                for _, question_list in grouped_questions.items():
                     if len(questions) >= 3:
                         break
                     if question_list:
@@ -357,6 +357,8 @@ Each question should be up to 7 words long and engaging.
         self,
         user_message: str,
         bot_response: str,
+        relevant_content: Optional[ContentItem],
+        warmth_guidance: str,
         conversation_summary: str,
         conversation_history: List[LLMMessage],
         conversation_manager
@@ -374,6 +376,18 @@ Each question should be up to 7 words long and engaging.
         Returns:
             A single conversation-focused follow-up question
         """
+        relevant_content_prompt = ""
+        if relevant_content:
+            relevant_content_prompt = f"""
+RELEVANT CONTENT ({relevant_content.category_type.upper()}):
+{relevant_content.content}
+"""
+
+        warmth_guidance_prompt = f"""
+WARMTH GUIDANCE FOR CURRENT CONVERSATION QUESTION:
+{warmth_guidance}
+"""
+
         try:
             system_prompt = f"""You are an expert at generating conversation-focused follow-up questions.
 
@@ -384,6 +398,10 @@ DIGITAL TWIN PERSONALITY PROFILE:
 
 CONVERSATION SUMMARY:
 {conversation_summary}
+
+{relevant_content_prompt}
+
+{warmth_guidance_prompt}
 
 🚨 CRITICAL REQUIREMENTS FOR CONVERSATION-FOCUSED QUESTIONS:
 
@@ -589,6 +607,8 @@ Generate 2 engaging questions (up to 7 words each) that explore different catego
             conversation_question = self._generate_conversation_question(
                 user_message=user_message,
                 bot_response=bot_response,
+                relevant_content=relevant_content,
+                warmth_guidance=warmth_guidance,
                 conversation_summary=conversation_summary,
                 conversation_history=conversation_history,
                 conversation_manager=conversation_manager
