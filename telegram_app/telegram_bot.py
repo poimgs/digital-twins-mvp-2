@@ -358,13 +358,16 @@ class TelegramDigitalTwin:
 
     async def _send_and_pin_instruction_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Send and pin the instruction message."""
-        # TODO: Unpin all previously pinned messages (if any)
         if not update.effective_chat:
             logger.warning("Cannot send and pin instruction message without effective_chat")
             return
 
         try:
-            chat_id = update.effective_chat.id           
+            chat_id = update.effective_chat.id
+            
+            # Unpin all previously pinned messages
+            await self._unpin_all_messages(context, chat_id)
+            
             instruction_text = "Feel free to ask your own question to me on the chat"
             message = await context.bot.send_message(
                 chat_id=chat_id,
@@ -383,6 +386,15 @@ class TelegramDigitalTwin:
         except Exception as e:
             logger.error(f"Error sending and pinning instruction message: {e}")
             # Don't raise the exception as this is not critical functionality
+
+    async def _unpin_all_messages(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+        """Unpin all previously pinned messages in the chat."""
+        try:
+            await context.bot.unpin_all_chat_messages(chat_id=chat_id)
+            logger.info(f"Unpinned all messages in chat {chat_id}")
+        except Exception as e:
+            logger.warning(f"Could not unpin messages in chat {chat_id}: {e}")
+            # This is not critical, so we just log and continue
 
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle callback queries from inline keyboard buttons with task tracking."""
