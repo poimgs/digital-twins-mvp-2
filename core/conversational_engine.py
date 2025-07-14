@@ -6,7 +6,8 @@ intelligent story repetition handling, and contextual awareness.
 
 import logging
 import random
-from typing import Dict, List, Optional
+from enum import Enum
+from typing import Dict, List, Optional, Any
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
 from core.conversation_manager import ConversationManager
@@ -14,6 +15,14 @@ from core.models import LLMMessage, ConversationResponse, StoryWithAnalysis, gen
 from core.content_retrieval_manager import ContentItem
 
 logger = logging.getLogger(__name__)
+
+
+class CategoryStrategy(Enum):
+    """Enum for different category-based question generation strategies."""
+    STORIES_ONLY = "stories_only"
+    LIMITED_CATEGORIES = "limited_categories"  # 2-3 categories
+    MANY_CATEGORIES = "many_categories"  # 4+ categories
+
 
 class ConversationalEngine:
     """
@@ -36,6 +45,20 @@ class ConversationalEngine:
             raise ValueError(f"Bot with ID {bot_id} not found")
         self.call_to_action = bot.call_to_action
         self.call_to_action_keyword = bot.call_to_action_keyword
+        
+        # Cache category information for efficient question generation
+        self.available_categories = supabase_client.get_distinct_category_types(bot_id=self.bot_id)
+        self.category_count = len(self.available_categories)
+        self.category_strategy = self._determine_category_strategy()
+
+    def _determine_category_strategy(self) -> CategoryStrategy:
+        """Determine the appropriate category strategy based on available categories."""
+        if self.category_count == 1 and self.available_categories == ["stories"]:
+            return CategoryStrategy.STORIES_ONLY
+        elif self.category_count <= 3:
+            return CategoryStrategy.LIMITED_CATEGORIES
+        else:
+            return CategoryStrategy.MANY_CATEGORIES
 
     def get_bot_personality_summary(self) -> str:
         """Get or create personality summary for a bot."""
@@ -494,11 +517,7 @@ Each question should be up to 7 words long and engaging.
             if not grouped_questions:
                 # Fallback to default questions if none found in database
                 logger.warning(f"No initial questions found for bot {self.bot_id}, using defaults")
-                return [
-                    "What experiences shaped you most?",
-                    "What matters most to you?",
-                    "What would you like to share?"
-                ]
+                return ["Tell me more about yourself"]
 
             # Select one question from each available category randomly
             questions = []
@@ -614,78 +633,50 @@ BOT RESPONSE: {bot_response}
             logger.error(f"Error generating conversation question: {e}")
             return "Tell me more about that"
 
-    def _generate_category_questions(
+    def _build_category_summaries(self, categories: List[str], conversation_manager) -> Dict[str, str]:
+        """Build category summaries for the given categories."""
+        category_summaries = {}
+        for category in categories:
+            category_summaries[category] = conversation_manager.content_retrieval_manager.get_content_summaries_by_category(category)
+        return category_summaries
+
+    def _get_question_schema(self) -> Dict[str, Any]:
+        """Get the standard schema for category questions."""
+        return {
+            "type": "object",
+            "properties": {
+                "category_question_1": {
+                    "type": "string",
+                    "description": "Question focusing on first content category"
+                },
+                "category_question_2": {
+                    "type": "string",
+                    "description": "Question focusing on second content category"
+                }
+            },
+            "required": ["category_question_1", "category_question_2"],
+            "additionalProperties": False
+        }
+
+    def _generate_category_questions_with_llm(
         self,
-        conversation_summary: str,
-        relevant_content: Optional[ContentItem],
+        system_prompt: str,
         conversation_history: List[LLMMessage],
-        conversation_manager
+        conversation_manager,
+        operation_type: str = "category_follow_up"
     ) -> List[str]:
-        """
-        Generate two category-based follow-up questions from different content categories.
-
-        Args:
-            conversation_summary: Summary of the conversation
-            relevant_content: The current relevant content item
-            conversation_history: Full conversation history for context
-            conversation_manager: Conversation manager instance
-
-        Returns:
-            List of 2 category-based follow-up questions
-        """
+        """Generate category questions using LLM with common logic."""
         try:
-            # Get random categories for follow-up questions
-            other_category_summaries = {}
-            if relevant_content:
-                random_categories = conversation_manager.content_retrieval_manager.get_random_categories_for_follow_up(
-                    relevant_content.category_type, count=2
-                )
-            else:
-                # If no relevant content, randomly select 2 categories from available categories
-                all_categories = supabase_client.get_distinct_category_types(bot_id=self.bot_id)
-                random_categories = random.sample(all_categories, min(2, len(all_categories)))
-
-            # Get summaries for the selected categories
-            for category in random_categories:
-                other_category_summaries[category] = conversation_manager.content_retrieval_manager.get_content_summaries_by_category(category)
-
-            # Create content context for categories
-            content_context = "AVAILABLE CATEGORIES FOR EXPLORATION:\n"
-            for category_type, summaries in other_category_summaries.items():
-                content_context += f"\n{category_type.upper()}:\n{summaries}\n"
-
-            system_prompt = self._get_category_specific_category_questions_prompt(
-                content_context=content_context,
-                conversation_summary=conversation_summary,
-                other_category_summaries=other_category_summaries
-            )
-
             messages = self.build_llm_messages(
                 system_prompt=system_prompt,
                 conversation_history=conversation_history,
                 user_message="Generate category exploration questions based on available content."
             )
 
-            category_questions_schema = {
-                "type": "object",
-                "properties": {
-                    "category_question_1": {
-                        "type": "string",
-                        "description": "Question focusing on first content category"
-                    },
-                    "category_question_2": {
-                        "type": "string",
-                        "description": "Question focusing on second content category"
-                    }
-                },
-                "required": ["category_question_1", "category_question_2"],
-                "additionalProperties": False
-            }
-
             response = llm_service.generate_structured_response_from_llm_messages(
                 messages=messages,
-                schema=category_questions_schema,
-                operation_type="category_follow_up",
+                schema=self._get_question_schema(),
+                operation_type=operation_type,
                 bot_id=str(self.bot_id),
                 chat_id=conversation_manager.chat_id,
                 conversation_number=conversation_manager.conversation_number
@@ -697,11 +688,221 @@ BOT RESPONSE: {bot_response}
             ]
 
         except Exception as e:
-            logger.error(f"Error generating category questions: {e}")
+            logger.error(f"Error generating category questions with LLM: {e}")
             return [
-                "What about your other experiences?",
+                "What about your experiences?",
                 "Tell me about your knowledge"
             ]
+
+    def _generate_stories_only_questions(
+        self,
+        conversation_summary: str,
+        conversation_history: List[LLMMessage],
+        conversation_manager
+    ) -> List[str]:
+        """
+        Generate follow-up questions for digital twins with only stories category.
+        Focuses on different aspects of storytelling and personal experiences.
+        """
+        try:
+            system_prompt = f"""You are an expert at generating story-focused follow-up questions.
+
+Your task is to generate exactly 2 follow-up questions that explore different aspects of the digital twin's stories and experiences.
+
+DIGITAL TWIN PERSONALITY PROFILE:
+{self.bot_personality}
+
+CONVERSATION SUMMARY:
+{conversation_summary}
+
+🚨 CRITICAL REQUIREMENTS FOR STORIES-ONLY QUESTIONS:
+
+1. EXPLORE DIFFERENT STORY ASPECTS:
+   - Focus on different themes, emotions, or life experiences
+   - Help the user discover varied aspects of the digital twin's journey
+   - Encourage exploration of different story elements
+
+2. ABOUT THE DIGITAL TWIN:
+   - Always focus on the digital twin's experiences, feelings, and perspectives
+   - Never ask about other people mentioned in stories
+   - Ask about personal growth, lessons learned, or emotional responses
+
+3. STORY EXPLORATION STRATEGIES:
+   - Ask about themes (resilience, relationships, growth, challenges)
+   - Ask about emotional aspects (feelings, reactions, transformations)
+   - Ask about life lessons or insights gained
+   - Ask about different time periods or life stages
+
+Generate 2 engaging questions (up to 7 words each) that explore different aspects of the digital twin's stories."""
+
+            messages = self.build_llm_messages(
+                system_prompt=system_prompt,
+                conversation_history=conversation_history,
+                user_message="Generate story-focused exploration questions for a stories-only digital twin."
+            )
+
+            stories_questions_schema = {
+                "type": "object",
+                "properties": {
+                    "story_question_1": {
+                        "type": "string",
+                        "description": "Question focusing on first story aspect or theme"
+                    },
+                    "story_question_2": {
+                        "type": "string",
+                        "description": "Question focusing on second story aspect or theme"
+                    }
+                },
+                "required": ["story_question_1", "story_question_2"],
+                "additionalProperties": False
+            }
+
+            response = llm_service.generate_structured_response_from_llm_messages(
+                messages=messages,
+                schema=stories_questions_schema,
+                operation_type="stories_only_follow_up",
+                bot_id=str(self.bot_id),
+                chat_id=conversation_manager.chat_id,
+                conversation_number=conversation_manager.conversation_number
+            )
+
+            return [
+                response.get("story_question_1", "What experiences shaped you most?"),
+                response.get("story_question_2", "How did challenges change you?")
+            ]
+
+        except Exception as e:
+            logger.error(f"Error generating stories-only questions: {e}")
+            return [
+                "What experiences shaped you most?",
+                "How did challenges change you?"
+            ]
+
+    def _generate_limited_categories_questions(
+        self,
+        conversation_summary: str,
+        conversation_history: List[LLMMessage],
+        conversation_manager
+    ) -> List[str]:
+        """
+        Generate follow-up questions for digital twins with limited categories (2-3).
+        Uses all available categories for exploration.
+        """
+        category_summaries = self._build_category_summaries(self.available_categories, conversation_manager)
+        
+        # Create content context for categories
+        content_context = "AVAILABLE CATEGORIES FOR EXPLORATION:\n"
+        for category_type, summaries in category_summaries.items():
+            content_context += f"\n{category_type.upper()}:\n{summaries}\n"
+
+        system_prompt = self._get_category_specific_category_questions_prompt(
+            content_context=content_context,
+            conversation_summary=conversation_summary,
+            other_category_summaries=category_summaries
+        )
+
+        return self._generate_category_questions_with_llm(
+            system_prompt=system_prompt,
+            conversation_history=conversation_history,
+            conversation_manager=conversation_manager,
+            operation_type="limited_category_follow_up"
+        )
+
+    def _generate_many_categories_questions(
+        self,
+        conversation_summary: str,
+        relevant_content: Optional[ContentItem],
+        conversation_history: List[LLMMessage],
+        conversation_manager
+    ) -> List[str]:
+        """
+        Generate follow-up questions for digital twins with many categories (4+).
+        Randomly selects 2 categories for exploration.
+        """
+        # Get random categories for follow-up questions
+        if relevant_content:
+            random_categories = conversation_manager.content_retrieval_manager.get_random_categories_for_follow_up(
+                relevant_content.category_type, count=2, available_categories=self.available_categories
+            )
+        else:
+            # If no relevant content, randomly select 2 categories from available categories
+            random_categories = random.sample(self.available_categories, min(2, len(self.available_categories)))
+
+        category_summaries = self._build_category_summaries(random_categories, conversation_manager)
+
+        # Create content context for categories
+        content_context = "AVAILABLE CATEGORIES FOR EXPLORATION:\n"
+        for category_type, summaries in category_summaries.items():
+            content_context += f"\n{category_type.upper()}:\n{summaries}\n"
+
+        system_prompt = self._get_category_specific_category_questions_prompt(
+            content_context=content_context,
+            conversation_summary=conversation_summary,
+            other_category_summaries=category_summaries
+        )
+
+        return self._generate_category_questions_with_llm(
+            system_prompt=system_prompt,
+            conversation_history=conversation_history,
+            conversation_manager=conversation_manager,
+            operation_type="category_follow_up"
+        )
+
+    def _generate_category_questions(
+        self,
+        conversation_summary: str,
+        relevant_content: Optional[ContentItem],
+        conversation_history: List[LLMMessage],
+        conversation_manager
+    ) -> List[str]:
+        """
+        Generate two category-based follow-up questions from different content categories.
+        Uses cached category information to handle different scenarios efficiently.
+
+        Args:
+            conversation_summary: Summary of the conversation
+            relevant_content: The current relevant content item
+            conversation_history: Full conversation history for context
+            conversation_manager: Conversation manager instance
+
+        Returns:
+            List of 2 category-based follow-up questions
+        """
+        try:
+            # Route to appropriate strategy based on category scenario
+            if self.category_strategy == CategoryStrategy.STORIES_ONLY:
+                return self._generate_stories_only_questions(
+                    conversation_summary=conversation_summary,
+                    conversation_history=conversation_history,
+                    conversation_manager=conversation_manager
+                )
+            elif self.category_strategy == CategoryStrategy.LIMITED_CATEGORIES:
+                return self._generate_limited_categories_questions(
+                    conversation_summary=conversation_summary,
+                    conversation_history=conversation_history,
+                    conversation_manager=conversation_manager
+                )
+            else:  # MANY_CATEGORIES
+                return self._generate_many_categories_questions(
+                    conversation_summary=conversation_summary,
+                    relevant_content=relevant_content,
+                    conversation_history=conversation_history,
+                    conversation_manager=conversation_manager
+                )
+
+        except Exception as e:
+            logger.error(f"Error generating category questions: {e}")
+            # Return appropriate fallback questions based on category scenario
+            if self.category_strategy == CategoryStrategy.STORIES_ONLY:
+                return [
+                    "What experiences shaped you most?",
+                    "How did challenges change you?"
+                ]
+            else:
+                return [
+                    "What about your other experiences?",
+                    "Tell me about your knowledge"
+                ]
 
     def _generate_follow_up_questions(
         self,

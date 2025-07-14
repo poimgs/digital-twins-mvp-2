@@ -156,7 +156,7 @@ Content: {content_description}
             logger.error(f"Error retrieving content items by category {category_type}: {e}")
             return []
 
-    def get_random_categories_for_follow_up(self, current_category: str, count: int = 2) -> List[str]:
+    def get_random_categories_for_follow_up(self, current_category: str, count: int = 2, available_categories: Optional[List[str]] = None) -> List[str]:
         """
         Get random categories different from the current one for follow-up questions.
         Only returns categories that have actual content.
@@ -164,17 +164,25 @@ Content: {content_description}
         Args:
             current_category: The current content category
             count: Number of random categories to return
+            available_categories: Pre-fetched categories list
 
         Returns:
             List of random category type strings
         """
-        # Get categories that have actual content for user-facing follow-up questions
-        all_categories = supabase_client.get_distinct_category_types(bot_id=self.bot_id)
+        # Use provided categories or fetch from database
+        if available_categories is not None:
+            all_categories = available_categories
+        else:
+            all_categories = supabase_client.get_distinct_category_types(bot_id=self.bot_id)
 
         # Remove current category from options
         other_categories = [cat for cat in all_categories if cat != current_category]
 
         # Return random selection, up to the requested count
+        # Handle case where we have fewer categories than requested
+        if len(other_categories) == 0:
+            return []
+        
         return random.sample(other_categories, min(count, len(other_categories)))
 
     def get_content_summaries_by_category(self, category_type: str) -> str:
