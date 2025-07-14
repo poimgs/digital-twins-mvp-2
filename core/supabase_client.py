@@ -356,6 +356,38 @@ class SupabaseClient:
             logger.error(f"Error retrieving content category: {e}")
             raise
 
+    def get_distinct_category_types(self, bot_id: Optional[str] = None) -> List[str]:
+        """
+        Retrieve distinct category types from content categories and add 'stories'.
+
+        Args:
+            bot_id: Optional bot ID to filter content categories
+
+        Returns:
+            List of distinct category type strings, always including 'stories'
+        """
+        try:
+            query = self.client.table("content_categories").select("category_type")
+            if bot_id:
+                query = query.eq("bot_id", bot_id)
+
+            result = query.execute()
+            
+            # Extract unique category types
+            category_types = set()
+            for row in result.data:
+                if row.get("category_type"):
+                    category_types.add(row["category_type"])
+            
+            # Always include 'stories' as it comes from a different table
+            category_types.add("stories")
+            
+            return sorted(list(category_types))
+        except Exception as e:
+            logger.error(f"Error retrieving distinct category types: {e}")
+            # Return fallback categories if database query fails
+            return ["stories", "daily_food_menu", "products", "catering"]
+
     # Initial questions table operations
     def insert_initial_question(self, initial_question: InitialQuestion) -> InitialQuestion:
         """

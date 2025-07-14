@@ -5,8 +5,8 @@ intelligent story repetition handling, and contextual awareness.
 """
 
 import logging
-from typing import Dict, List, Optional
 import random
+from typing import Dict, List, Optional
 from core.llm_service import llm_service
 from core.supabase_client import supabase_client
 from core.conversation_manager import ConversationManager
@@ -353,6 +353,210 @@ Each question should be up to 7 words long and engaging.
                 "What would you like to share?"
             ]
 
+    def _generate_conversation_question(
+        self,
+        user_message: str,
+        bot_response: str,
+        conversation_summary: str,
+        conversation_history: List[LLMMessage],
+        conversation_manager
+    ) -> str:
+        """
+        Generate a single conversation-focused follow-up question based on current dialogue context.
+
+        Args:
+            user_message: The user's original message
+            bot_response: The bot's response to the user
+            conversation_summary: Summary of the conversation
+            conversation_history: Full conversation history for context
+            conversation_manager: Conversation manager instance
+
+        Returns:
+            A single conversation-focused follow-up question
+        """
+        try:
+            system_prompt = f"""You are an expert at generating conversation-focused follow-up questions.
+
+Your task is to generate exactly 1 follow-up question that builds naturally on the current dialogue exchange.
+
+DIGITAL TWIN PERSONALITY PROFILE:
+{self.bot_personality}
+
+CONVERSATION SUMMARY:
+{conversation_summary}
+
+🚨 CRITICAL REQUIREMENTS FOR CONVERSATION-FOCUSED QUESTIONS:
+
+1. FOCUS ON CURRENT DIALOGUE:
+   - Build directly on what was just discussed in the user message and bot response
+   - Help deepen the current conversation topic
+   - Encourage the user to share more about their current interest
+
+2. NATURAL CONVERSATION FLOW:
+   - Should feel like a natural follow-up to what was just said
+   - Focus on the digital twin's perspective on the current topic
+   - Encourage deeper exploration of the current subject
+
+3. ABOUT THE DIGITAL TWIN:
+   - Always focus on the digital twin's experiences, feelings, and perspectives
+   - Never ask about other people mentioned in the conversation
+   - Ask about how things affected the digital twin
+
+Generate 1 engaging question (up to 7 words) that naturally continues the current conversation."""
+
+            user_message_context = f"""
+USER MESSAGE: {user_message}
+BOT RESPONSE: {bot_response}
+            """
+            
+            messages = self.build_llm_messages(
+                system_prompt=system_prompt,
+                conversation_history=conversation_history,
+                user_message=user_message_context
+            )
+
+            conversation_question_schema = {
+                "type": "object",
+                "properties": {
+                    "conversation_question": {
+                        "type": "string",
+                        "description": "A follow-up question that builds naturally on the current dialogue"
+                    }
+                },
+                "required": ["conversation_question"],
+                "additionalProperties": False
+            }
+
+            response = llm_service.generate_structured_response_from_llm_messages(
+                messages=messages,
+                schema=conversation_question_schema,
+                operation_type="conversation_follow_up",
+                bot_id=str(self.bot_id),
+                chat_id=conversation_manager.chat_id,
+                conversation_number=conversation_manager.conversation_number
+            )
+
+            return response.get("conversation_question", "Tell me more about that")
+
+        except Exception as e:
+            logger.error(f"Error generating conversation question: {e}")
+            return "Tell me more about that"
+
+    def _generate_category_questions(
+        self,
+        conversation_summary: str,
+        relevant_content: Optional[ContentItem],
+        conversation_history: List[LLMMessage],
+        conversation_manager
+    ) -> List[str]:
+        """
+        Generate two category-based follow-up questions from different content categories.
+
+        Args:
+            conversation_summary: Summary of the conversation
+            relevant_content: The current relevant content item
+            conversation_history: Full conversation history for context
+            conversation_manager: Conversation manager instance
+
+        Returns:
+            List of 2 category-based follow-up questions
+        """
+        try:
+            # Get random categories for follow-up questions
+            other_category_summaries = {}
+            if relevant_content:
+                random_categories = conversation_manager.content_retrieval_manager.get_random_categories_for_follow_up(
+                    relevant_content.category_type, count=2
+                )
+            else:
+                # If no relevant content, randomly select 2 categories from available categories
+                all_categories = supabase_client.get_distinct_category_types(bot_id=self.bot_id)
+                random_categories = random.sample(all_categories, min(2, len(all_categories)))
+
+            # Get summaries for the selected categories
+            for category in random_categories:
+                other_category_summaries[category] = conversation_manager.content_retrieval_manager.get_content_summaries_by_category(category)
+
+            # Create content context for categories
+            content_context = "AVAILABLE CATEGORIES FOR EXPLORATION:\n"
+            for category_type, summaries in other_category_summaries.items():
+                content_context += f"\n{category_type.upper()}:\n{summaries}\n"
+
+            system_prompt = f"""You are an expert at generating category-exploration follow-up questions.
+
+Your task is to generate exactly 2 follow-up questions that explore different content categories.
+
+DIGITAL TWIN PERSONALITY PROFILE:
+{self.bot_personality}
+
+{content_context}
+
+CONVERSATION SUMMARY:
+{conversation_summary}
+
+🚨 CRITICAL REQUIREMENTS FOR CATEGORY QUESTIONS:
+
+1. EXPLORE DIFFERENT CATEGORIES:
+   - Each question should focus on a different content category
+   - Help the user discover new aspects of the digital twin's knowledge
+   - Encourage exploration beyond the current conversation topic
+
+2. CATEGORY FOCUS EXAMPLES:
+   - Stories: Personal experiences, memories, feelings
+   - Daily Food Menu: Food knowledge, culinary experiences, taste preferences  
+   - Products: Product knowledge, brand values, coffee expertise
+   - Catering: Service experience, event knowledge, hospitality insights
+
+3. ABOUT THE DIGITAL TWIN:
+   - Always focus on the digital twin's experiences, knowledge, and perspectives
+   - Never ask about other people
+   - Ask about the digital twin's relationship to each category
+
+Generate 2 engaging questions (up to 7 words each) that explore different categories."""
+
+            messages = self.build_llm_messages(
+                system_prompt=system_prompt,
+                conversation_history=conversation_history,
+                user_message="Generate category exploration questions based on available content."
+            )
+
+            category_questions_schema = {
+                "type": "object",
+                "properties": {
+                    "category_question_1": {
+                        "type": "string",
+                        "description": "Question focusing on first content category"
+                    },
+                    "category_question_2": {
+                        "type": "string",
+                        "description": "Question focusing on second content category"
+                    }
+                },
+                "required": ["category_question_1", "category_question_2"],
+                "additionalProperties": False
+            }
+
+            response = llm_service.generate_structured_response_from_llm_messages(
+                messages=messages,
+                schema=category_questions_schema,
+                operation_type="category_follow_up",
+                bot_id=str(self.bot_id),
+                chat_id=conversation_manager.chat_id,
+                conversation_number=conversation_manager.conversation_number
+            )
+
+            return [
+                response.get("category_question_1", "What about your experiences?"),
+                response.get("category_question_2", "Tell me about your knowledge")
+            ]
+
+        except Exception as e:
+            logger.error(f"Error generating category questions: {e}")
+            return [
+                "What about your other experiences?",
+                "Tell me about your knowledge"
+            ]
+
     def _generate_follow_up_questions(
         self,
         user_message: str,
@@ -364,93 +568,48 @@ Each question should be up to 7 words long and engaging.
         conversation_manager
     ) -> List[str]:
         """
-        Generate three follow-up questions using a dedicated LLM call with content categories.
+        Generate three follow-up questions using separate conversation and category-focused approaches.
 
         Args:
             user_message: The user's original message
             bot_response: The bot's response to the user
             conversation_summary: Summary of the conversation
             relevant_content: The current relevant content item
-            warmth_guidance: Guidance for warmth-based questions
+            warmth_guidance: Guidance for warmth-based questions (deprecated in favor of conversation flow)
             conversation_history: Full conversation history for context
+            conversation_manager: Conversation manager instance
 
         Returns:
-            List of exactly 3 follow-up questions
+            List of exactly 3 follow-up questions:
+            - Question 1: Conversation-focused (based on current dialogue)
+            - Questions 2-3: Category-focused (based on different content categories)
         """
         try:
-            # TODO: REFACTOR - Should not retrieve content_retrieval_manager from conversation manager and run functions from there
-            # Get summaries for other categories
-            other_category_summaries = {}
-            if relevant_content:
-                # Get random categories for follow-up questions
-                random_categories = conversation_manager.content_retrieval_manager.get_random_categories_for_follow_up(
-                    relevant_content.category_type, count=2
-                )
-                for category in random_categories:
-                    other_category_summaries[category] = conversation_manager.content_retrieval_manager.get_content_summaries_by_category(category)
-            else:
-                # If no relevant content, get summaries for all categories
-                all_categories = ["stories", "daily_food_menu", "products", "catering"]
-                for category in all_categories:
-                    other_category_summaries[category] = conversation_manager.content_retrieval_manager.get_content_summaries_by_category(category)
-
-            system_prompt = self._get_content_category_conversation_prompt(
-                warmth_guidance, relevant_content, other_category_summaries, conversation_summary
-            )
-
-            # Build messages for LLM using conversation history instead of just current exchange
-            user_message = f"""
-USER MESSAGE: {user_message}
-BOT RESPONSE: {bot_response}
-            """
-            messages = self.build_llm_messages(
-                system_prompt=system_prompt,
+            # Generate conversation-focused question (Question 1)
+            conversation_question = self._generate_conversation_question(
+                user_message=user_message,
+                bot_response=bot_response,
+                conversation_summary=conversation_summary,
                 conversation_history=conversation_history,
-                user_message=user_message
-            )
-            # Add the bot's response as the final assistant message
-
-            questions_schema = {
-                "type": "object",
-                "properties": {
-                    "current_category_question": {
-                        "type": "string",
-                        "description": "Question focusing on current content category with deeper engagement"
-                    },
-                    "other_category_question_1": {
-                        "type": "string",
-                        "description": "Question focusing on a different content category"
-                    },
-                    "other_category_question_2": {
-                        "type": "string",
-                        "description": "Question focusing on another different content category"
-                    }
-                },
-                "required": ["current_category_question", "other_category_question_1", "other_category_question_2"],
-                "additionalProperties": False
-            }
-
-            questions_response = llm_service.generate_structured_response_from_llm_messages(
-                messages=messages,
-                schema=questions_schema,
-                operation_type="follow_up_questions",
-                bot_id=str(self.bot_id),
-                chat_id=conversation_manager.chat_id,
-                conversation_number=conversation_manager.conversation_number
+                conversation_manager=conversation_manager
             )
 
-            # Construct the questions array for ongoing conversations
-            return [
-                questions_response.get("current_category_question", "Tell me more about this"),
-                questions_response.get("other_category_question_1", "What about your other experiences?"),
-                questions_response.get("other_category_question_2", "Tell me more")
-            ]
+            # Generate category-focused questions (Questions 2-3)
+            category_questions = self._generate_category_questions(
+                conversation_summary=conversation_summary,
+                relevant_content=relevant_content,
+                conversation_history=conversation_history,
+                conversation_manager=conversation_manager
+            )
+
+            # Combine questions: 1 conversation + 2 category
+            return [conversation_question] + category_questions
 
         except Exception as e:
             logger.error(f"Error generating follow-up questions: {e}")
             # Return default questions if generation fails
             return [
-                "Tell me more about this story?",
+                "Tell me more about that",
                 "What about your other experiences?",
                 "How did that make you feel?"
             ]

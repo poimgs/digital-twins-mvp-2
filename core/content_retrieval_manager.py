@@ -159,12 +159,8 @@ Summary: {item.summary}
         Returns:
             List of random category type strings
         """
-        all_categories = [
-            "stories",
-            "daily_food_menu",
-            "products",
-            "catering"
-        ]
+        # Get all available categories dynamically from the database
+        all_categories = supabase_client.get_distinct_category_types(bot_id=self.bot_id)
 
         # Remove current category from options
         other_categories = [cat for cat in all_categories if cat != current_category]
