@@ -336,7 +336,7 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Error retrieving distinct category types: {e}")
             # Return fallback categories if database query fails
-            return ["stories", "daily_food_menu", "products", "catering"]
+            return ["stories"]
 
     # Initial questions table operations
     def insert_initial_question(self, initial_question: InitialQuestion) -> InitialQuestion:

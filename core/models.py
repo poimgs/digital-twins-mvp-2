@@ -11,13 +11,6 @@ from typing import Dict, Any, Optional, List
 from uuid import UUID
 import uuid
 
-class ContentCategoryType(Enum):
-    """Enum for content category types."""
-    STORIES = "stories"
-    DAILY_FOOD_MENU = "daily_food_menu"
-    PRODUCTS = "products"
-    CATERING = "catering"
-
 @dataclass
 class Bot:
     """Data class representing a bot record from the bots table."""

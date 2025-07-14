@@ -1,7 +1,7 @@
 """
 Content Retrieval Manager - Manages content retrieval from multiple categories.
 Handles sophisticated content filtering, ranking, and relevance scoring for
-contextual content selection in conversations across stories, menu, products, and catering.
+contextual content selection in conversations.
 """
 
 import logging

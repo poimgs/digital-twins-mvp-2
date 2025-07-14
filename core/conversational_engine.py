@@ -268,12 +268,6 @@ CONVERSATION SUMMARY:
    - 2nd question: Focus on a DIFFERENT CATEGORY from available categories
    - 3rd question: Focus on another DIFFERENT CATEGORY from available categories
 
-3. CATEGORY FOCUS EXAMPLES:
-   - Stories: Personal experiences, memories, feelings
-   - Daily Food Menu: Food knowledge, culinary experiences, taste preferences
-   - Products: Product knowledge, brand values, coffee expertise
-   - Catering: Service experience, event knowledge, hospitality insights
-
 Each question should be up to 7 words long and engaging.
 
 - For the 1st question: {warmth_guidance}
@@ -519,13 +513,7 @@ CONVERSATION SUMMARY:
    - Help the user discover new aspects of the digital twin's knowledge
    - Encourage exploration beyond the current conversation topic
 
-2. CATEGORY FOCUS EXAMPLES:
-   - Stories: Personal experiences, memories, feelings
-   - Daily Food Menu: Food knowledge, culinary experiences, taste preferences  
-   - Products: Product knowledge, brand values, coffee expertise
-   - Catering: Service experience, event knowledge, hospitality insights
-
-3. ABOUT THE DIGITAL TWIN:
+2. ABOUT THE DIGITAL TWIN:
    - Always focus on the digital twin's experiences, knowledge, and perspectives
    - Never ask about other people
    - Ask about the digital twin's relationship to each category
