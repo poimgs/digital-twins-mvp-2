@@ -26,8 +26,8 @@ def normalize_timestamp(timestamp_str: str) -> str:
     # Replace 'Z' with '+00:00' for timezone handling
     timestamp_str = timestamp_str.replace('Z', '+00:00')
     
-    # Pattern to match timestamps with optional microseconds
-    pattern = r'(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(\+\d{2}:?\d{2}|Z)$'
+    # Pattern to match timestamps with optional microseconds (handles both space and T separators)
+    pattern = r'(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(\+\d{2}:?\d{2}|Z)$'
     match = re.match(pattern, timestamp_str)
     
     if not match:
