@@ -22,6 +22,7 @@ class ConversationalEngine:
     Implements conversation-focused state tracking, intelligent story repetition
     handling, and contextual awareness for natural dialogue flow across multiple bots.
     """
+    cta_prompt = "click to discover our limited-time promotion"
 
     def __init__(self, bot_id: str):
         """Initialize the conversational engine."""
@@ -519,7 +520,7 @@ PERSONALITY PROFILE:
             """
             
             response = ""
-            if user_message.strip().lower() == "click to discover our limited-time promotion":
+            if user_message == self.cta_prompt:
                 response = self.call_to_action
             else:  
                 messages = self.build_llm_messages(
@@ -547,7 +548,7 @@ PERSONALITY PROFILE:
             )
             
             if conversation_manager.ready_for_call_to_action():
-                follow_up_questions[2] ="click to discover our limited-time promotion"
+                follow_up_questions[2] = self.cta_prompt
 
             conversation_response = ConversationResponse(response, follow_up_questions)
 
