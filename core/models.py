@@ -10,6 +10,41 @@ from enum import Enum
 from typing import Dict, Any, Optional, List
 from uuid import UUID
 import uuid
+import re
+
+def normalize_timestamp(timestamp_str: str) -> str:
+    """
+    Normalize Supabase timestamp strings to handle variable microsecond precision.
+    
+    Supabase can return timestamps like:
+    - 2025-07-14 15:59:00.17095+00
+    - 2025-07-14 15:59:00.1+00
+    - 2025-07-14 15:59:00.123456+00
+    
+    This function ensures microseconds are padded to 6 digits or removed if all zeros.
+    """
+    # Replace 'Z' with '+00:00' for timezone handling
+    timestamp_str = timestamp_str.replace('Z', '+00:00')
+    
+    # Pattern to match timestamps with optional microseconds
+    pattern = r'(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(\+\d{2}:?\d{2}|Z)$'
+    match = re.match(pattern, timestamp_str)
+    
+    if not match:
+        # If no match, return as-is and let fromisoformat handle it
+        return timestamp_str
+    
+    base_time, microseconds, timezone = match.groups()
+    
+    if microseconds:
+        # Pad microseconds to 6 digits or truncate if longer
+        microseconds = microseconds.ljust(6, '0')[:6]
+        # Remove trailing zeros for cleaner format
+        microseconds = microseconds.rstrip('0')
+        if microseconds:
+            return f"{base_time}.{microseconds}{timezone}"
+    
+    return f"{base_time}{timezone}"
 
 @dataclass
 class Bot:
@@ -37,11 +72,11 @@ class Bot:
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            created_at = datetime.fromisoformat(normalize_timestamp(created_at))
 
         updated_at = data.get('updated_at')
         if isinstance(updated_at, str):
-            updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+            updated_at = datetime.fromisoformat(normalize_timestamp(updated_at))
 
         return cls(
             id=bot_id,
@@ -99,11 +134,11 @@ class Story:
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            created_at = datetime.fromisoformat(normalize_timestamp(created_at))
 
         updated_at = data.get('updated_at')
         if isinstance(updated_at, str):
-            updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+            updated_at = datetime.fromisoformat(normalize_timestamp(updated_at))
 
         return cls(
             id=story_id,
@@ -160,7 +195,7 @@ class StoryAnalysis:
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            created_at = datetime.fromisoformat(normalize_timestamp(created_at))
 
         return cls(
             id=analysis_id,
@@ -231,11 +266,11 @@ class PersonalityProfile:
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            created_at = datetime.fromisoformat(normalize_timestamp(created_at))
 
         updated_at = data.get('updated_at')
         if isinstance(updated_at, str):
-            updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+            updated_at = datetime.fromisoformat(normalize_timestamp(updated_at))
 
         return cls(
             id=profile_id,
@@ -302,11 +337,11 @@ class InitialQuestion:
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            created_at = datetime.fromisoformat(normalize_timestamp(created_at))
 
         updated_at = data.get('updated_at')
         if isinstance(updated_at, str):
-            updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+            updated_at = datetime.fromisoformat(normalize_timestamp(updated_at))
 
         return cls(
             id=question_id,
@@ -398,7 +433,7 @@ class ConversationMessage:
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            created_at = datetime.fromisoformat(normalize_timestamp(created_at))
 
         return cls(
             id=message_id,
@@ -538,11 +573,11 @@ class ConversationState:
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            created_at = datetime.fromisoformat(normalize_timestamp(created_at))
 
         updated_at = data.get('updated_at')
         if isinstance(updated_at, str):
-            updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+            updated_at = datetime.fromisoformat(normalize_timestamp(updated_at))
 
         return cls(
             id=state_id,
@@ -622,16 +657,16 @@ class StoryWithAnalysis:
         # Handle datetime conversion for story timestamps
         story_created_at = data.get('created_at') or data.get('story_created_at')
         if isinstance(story_created_at, str):
-            story_created_at = datetime.fromisoformat(story_created_at.replace('Z', '+00:00'))
+            story_created_at = datetime.fromisoformat(normalize_timestamp(story_created_at))
 
         story_updated_at = data.get('updated_at') or data.get('story_updated_at')
         if isinstance(story_updated_at, str):
-            story_updated_at = datetime.fromisoformat(story_updated_at.replace('Z', '+00:00'))
+            story_updated_at = datetime.fromisoformat(normalize_timestamp(story_updated_at))
 
         # Handle datetime conversion for analysis timestamp
         analysis_created_at = data.get('analysis_created_at')
         if isinstance(analysis_created_at, str):
-            analysis_created_at = datetime.fromisoformat(analysis_created_at.replace('Z', '+00:00'))
+            analysis_created_at = datetime.fromisoformat(normalize_timestamp(analysis_created_at))
 
         return cls(
             id=story_id,
@@ -724,7 +759,7 @@ class TokenUsage:
         # Handle datetime conversion
         created_at = data.get('created_at')
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            created_at = datetime.fromisoformat(normalize_timestamp(created_at))
 
         return cls(
             id=usage_id,
