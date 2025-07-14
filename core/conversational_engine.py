@@ -56,6 +56,192 @@ COMMUNICATION STYLE & VOICE:
 - Storytelling Style: {personality_profile.storytelling_style if personality_profile else 'Not specified'}
 """
 
+    def _get_category_specific_system_prompt(self, relevant_content: Optional[ContentItem], conversation_manager, content_context: str) -> str:
+        """
+        Generate system prompt based on content category.
+        Uses different prompts for 'stories' vs other categories.
+        """
+        # Check if we have relevant content and what category it is
+        if relevant_content and relevant_content.category_type == "stories":
+            # Use storytelling-focused prompt for stories category
+            return f"""You are a digital twin.
+Respond as if you are the person whose content was analyzed, maintaining their personality, communication style, and emotional patterns.
+Use the conversation context to provide natural, contextually-aware responses that build on the ongoing dialogue.
+
+Ensure that you keep your response to the user's message brief and to the point. Focus on sharing relevant knowledge and personal insights.
+
+CONVERSATION CONTEXT:
+{conversation_manager.summary}
+
+PERSONALITY PROFILE:
+{self.bot_personality}
+
+{content_context}
+            """
+        else:
+            # Use informational prompt for other categories (products, catering, daily_food_menu, etc.)
+            return f"""You are a helpful digital assistant representing this business/service. Your role is to provide detailed, accurate information about our offerings and services.
+
+COMMUNICATION STYLE:
+- Be informative and professional yet warm
+- Focus on practical details like pricing, ingredients, availability, and specifications
+- Provide clear, actionable information
+- Use bullet points and structured formatting when helpful
+- Be concise but comprehensive
+
+CONTENT FOCUS:
+- Share specific details about products, menus, and services
+- Include pricing, portions, ingredients, and availability when relevant
+- Help users understand what we offer and how to access it
+- Answer questions about specifications, customization options, and logistics
+
+When users ask questions, prioritize sharing relevant content details over storytelling. Focus on being a knowledgeable resource about our offerings.
+
+CONVERSATION CONTEXT:
+{conversation_manager.summary}
+
+{content_context}
+            """
+
+    def _get_category_specific_conversation_question_prompt(
+        self,
+        relevant_content: Optional[ContentItem],
+        conversation_summary: str,
+        relevant_content_prompt: str,
+        warmth_guidance_prompt: str
+    ) -> str:
+        """
+        Generate category-specific system prompt for conversation follow-up questions.
+        """
+        if relevant_content and relevant_content.category_type == "stories":
+            # Stories category: Focus on personal experiences and emotional depth
+            return f"""You are an expert at generating conversation-focused follow-up questions.
+
+Your task is to generate exactly 1 follow-up question that builds naturally on the current dialogue exchange.
+
+DIGITAL TWIN PERSONALITY PROFILE:
+{self.bot_personality}
+
+CONVERSATION SUMMARY:
+{conversation_summary}
+
+{relevant_content_prompt}
+
+{warmth_guidance_prompt}
+
+🚨 CRITICAL REQUIREMENTS FOR CONVERSATION-FOCUSED QUESTIONS:
+
+1. FOCUS ON CURRENT DIALOGUE:
+   - Build directly on what was just discussed in the user message and bot response
+   - Help deepen the current conversation topic
+   - Encourage the user to share more about their current interest
+
+2. NATURAL CONVERSATION FLOW:
+   - Should feel like a natural follow-up to what was just said
+   - Focus on the digital twin's perspective on the current topic
+   - Encourage deeper exploration of the current subject
+
+3. ABOUT THE DIGITAL TWIN:
+   - Always focus on the digital twin's experiences, feelings, and perspectives
+   - Never ask about other people mentioned in the conversation
+   - Ask about how things affected the digital twin
+
+Generate 1 engaging question (up to 7 words) that naturally continues the current conversation."""
+        else:
+            # Other categories: Focus on practical information and service details
+            return f"""You are an expert at generating conversation-focused follow-up questions for business/service content.
+
+Your task is to generate exactly 1 follow-up question that builds naturally on the current dialogue exchange.
+
+CONVERSATION SUMMARY:
+{conversation_summary}
+
+{relevant_content_prompt}
+
+🚨 CRITICAL REQUIREMENTS FOR CONVERSATION-FOCUSED QUESTIONS:
+
+1. FOCUS ON CURRENT DIALOGUE:
+   - Build directly on what was just discussed in the user message and bot response
+   - Help deepen understanding of the current topic
+   - Encourage the user to learn more about the current subject
+
+2. NATURAL CONVERSATION FLOW:
+   - Should feel like a natural follow-up to what was just said
+   - Focus on practical aspects of the topic being discussed
+   - Encourage deeper exploration of details, options, or specifications
+
+3. ABOUT THE OFFERINGS:
+   - Focus on products, services, pricing, availability, or customization options
+   - Ask about specific details that might interest the user
+   - Help the user understand what's available and how to access it
+
+Generate 1 engaging question (up to 7 words) that naturally continues the current conversation."""
+
+    def _get_category_specific_category_questions_prompt(
+        self,
+        content_context: str,
+        conversation_summary: str,
+        other_category_summaries: dict
+    ) -> str:
+        """
+        Generate category-specific system prompt for category exploration questions.
+        """
+        # Check if any of the categories are stories
+        has_stories = any(category == "stories" for category in other_category_summaries.keys())
+        
+        if has_stories:
+            # If stories category is present, use personality-focused approach
+            return f"""You are an expert at generating category-exploration follow-up questions.
+
+Your task is to generate exactly 2 follow-up questions that explore different content categories.
+
+DIGITAL TWIN PERSONALITY PROFILE:
+{self.bot_personality}
+
+{content_context}
+
+CONVERSATION SUMMARY:
+{conversation_summary}
+
+🚨 CRITICAL REQUIREMENTS FOR CATEGORY QUESTIONS:
+
+1. EXPLORE DIFFERENT CATEGORIES:
+   - Each question should focus on a different content category
+   - Help the user discover new aspects of the digital twin's knowledge
+   - Encourage exploration beyond the current conversation topic
+
+2. ABOUT THE DIGITAL TWIN:
+   - Always focus on the digital twin's experiences, knowledge, and perspectives
+   - Never ask about other people
+   - Ask about the digital twin's relationship to each category
+
+Generate 2 engaging questions (up to 7 words each) that explore different categories."""
+        else:
+            # If no stories category, use service/business-focused approach
+            return f"""You are an expert at generating category-exploration follow-up questions for business/service content.
+
+Your task is to generate exactly 2 follow-up questions that explore different content categories.
+
+{content_context}
+
+CONVERSATION SUMMARY:
+{conversation_summary}
+
+🚨 CRITICAL REQUIREMENTS FOR CATEGORY QUESTIONS:
+
+1. EXPLORE DIFFERENT CATEGORIES:
+   - Each question should focus on a different content category
+   - Help the user discover new aspects of what we offer
+   - Encourage exploration beyond the current conversation topic
+
+2. ABOUT THE OFFERINGS:
+   - Focus on products, services, pricing, availability, or features
+   - Ask about specific details that might interest the user
+   - Help the user understand what's available and how to access it
+   - Encourage questions about customization, ordering, or specifications
+
+Generate 2 engaging questions (up to 7 words each) that explore different categories."""
+
     def get_or_create_conversation_manager(self, chat_id: str, bot_id: str) -> ConversationManager:
         """Get or create conversation manager for a chat."""
         if chat_id not in self.conversations:
@@ -383,38 +569,12 @@ WARMTH GUIDANCE FOR CURRENT CONVERSATION QUESTION:
 """
 
         try:
-            system_prompt = f"""You are an expert at generating conversation-focused follow-up questions.
-
-Your task is to generate exactly 1 follow-up question that builds naturally on the current dialogue exchange.
-
-DIGITAL TWIN PERSONALITY PROFILE:
-{self.bot_personality}
-
-CONVERSATION SUMMARY:
-{conversation_summary}
-
-{relevant_content_prompt}
-
-{warmth_guidance_prompt}
-
-🚨 CRITICAL REQUIREMENTS FOR CONVERSATION-FOCUSED QUESTIONS:
-
-1. FOCUS ON CURRENT DIALOGUE:
-   - Build directly on what was just discussed in the user message and bot response
-   - Help deepen the current conversation topic
-   - Encourage the user to share more about their current interest
-
-2. NATURAL CONVERSATION FLOW:
-   - Should feel like a natural follow-up to what was just said
-   - Focus on the digital twin's perspective on the current topic
-   - Encourage deeper exploration of the current subject
-
-3. ABOUT THE DIGITAL TWIN:
-   - Always focus on the digital twin's experiences, feelings, and perspectives
-   - Never ask about other people mentioned in the conversation
-   - Ask about how things affected the digital twin
-
-Generate 1 engaging question (up to 7 words) that naturally continues the current conversation."""
+            system_prompt = self._get_category_specific_conversation_question_prompt(
+                relevant_content=relevant_content,
+                conversation_summary=conversation_summary,
+                relevant_content_prompt=relevant_content_prompt,
+                warmth_guidance_prompt=warmth_guidance_prompt
+            )
 
             user_message_context = f"""
 USER MESSAGE: {user_message}
@@ -494,31 +654,11 @@ BOT RESPONSE: {bot_response}
             for category_type, summaries in other_category_summaries.items():
                 content_context += f"\n{category_type.upper()}:\n{summaries}\n"
 
-            system_prompt = f"""You are an expert at generating category-exploration follow-up questions.
-
-Your task is to generate exactly 2 follow-up questions that explore different content categories.
-
-DIGITAL TWIN PERSONALITY PROFILE:
-{self.bot_personality}
-
-{content_context}
-
-CONVERSATION SUMMARY:
-{conversation_summary}
-
-🚨 CRITICAL REQUIREMENTS FOR CATEGORY QUESTIONS:
-
-1. EXPLORE DIFFERENT CATEGORIES:
-   - Each question should focus on a different content category
-   - Help the user discover new aspects of the digital twin's knowledge
-   - Encourage exploration beyond the current conversation topic
-
-2. ABOUT THE DIGITAL TWIN:
-   - Always focus on the digital twin's experiences, knowledge, and perspectives
-   - Never ask about other people
-   - Ask about the digital twin's relationship to each category
-
-Generate 2 engaging questions (up to 7 words each) that explore different categories."""
+            system_prompt = self._get_category_specific_category_questions_prompt(
+                content_context=content_context,
+                conversation_summary=conversation_summary,
+                other_category_summaries=other_category_summaries
+            )
 
             messages = self.build_llm_messages(
                 system_prompt=system_prompt,
@@ -665,20 +805,12 @@ RELEVANT CONTENT ({relevant_content.category_type.upper()}):
 No specific content selected for this conversation.
 """
 
-            system_prompt = f"""You are a digital twin with knowledge across multiple content areas.
-Respond as if you are the person whose content was analyzed, maintaining their personality, communication style, and emotional patterns.
-Use the conversation context to provide natural, contextually-aware responses that build on the ongoing dialogue.
-
-Ensure that you keep your response to the user's message brief and to the point. Focus on sharing relevant knowledge and personal insights.
-
-CONVERSATION CONTEXT:
-{conversation_manager.summary}
-
-PERSONALITY PROFILE:
-{self.bot_personality}
-
-{content_context}
-            """
+            # Generate category-specific system prompt
+            system_prompt = self._get_category_specific_system_prompt(
+                relevant_content=relevant_content,
+                conversation_manager=conversation_manager,
+                content_context=content_context
+            )
             
             response = ""
             if user_message == self.cta_prompt:

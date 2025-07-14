@@ -108,11 +108,20 @@ def main():
 
             logger.info(f"Found {len(bot_stories)} stories for bot {bot.name}")
 
-            # Step 3: Run story analysis for this bot
-            logger.info(f"Running story analysis for bot {bot.name}...")
-            bot_analyses = run_story_analysis_for_bot(str(bot.id), bot_stories)
+            # Filter stories to only include "stories" category for analysis
+            stories_to_analyze = [story for story in bot_stories if story.category_type == "stories"]
+            
+            if not stories_to_analyze:
+                logger.info(f"No 'stories' category content found for bot {bot.name}, skipping story analysis...")
+                continue
 
-            # Step 4: Generate personality profile for this bot
+            logger.info(f"Found {len(stories_to_analyze)} stories (category: 'stories') for analysis for bot {bot.name}")
+
+            # Step 3: Run story analysis for this bot (stories category only)
+            logger.info(f"Running story analysis for bot {bot.name}...")
+            bot_analyses = run_story_analysis_for_bot(str(bot.id), stories_to_analyze)
+
+            # Step 4: Generate personality profile for this bot (stories category only)
             logger.info(f"Generating personality profile for bot {bot.name}...")
             try:
                 # Check if profile already exists
@@ -121,8 +130,8 @@ def main():
                     logger.info(f"Personality profile already exists for bot {bot.name}")
                     profile = existing_profile
                 else:
-                    # Generate new profile
-                    profile = personality_profiler.generate_personality(bot_stories, str(bot.id))
+                    # Generate new profile using only stories category content
+                    profile = personality_profiler.generate_personality(stories_to_analyze, str(bot.id))
                     # Set the correct bot_id
                     profile.bot_id = bot.id
                     # Store the profile
